@@ -9,6 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@apollo/server": "^5.5.0",
+    "@as-integrations/next": "^4.1.0",
     "dotenv": "^17.4.0",
     "graphql": "^16.13.2",
     "jsonwebtoken": "^9.0.3",

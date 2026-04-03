@@ -1,22 +1,35 @@
-import { NextResponse } from "next/server";
-import { connectDB } from "@/lib/db";
-import User from "@/models/User.model";
+import { ApolloServer } from "@apollo/server";
+import { startServerAndCreateNextHandler } from "@as-integrations/next";
+import { NextRequest } from "next/server";
 
-export async function GET() {
-  try {
-    await connectDB(); 
+import { schema } from "@/lib/graphql/schema";
+import { createContext } from "@/lib/graphql/context";
 
-    const count = await User.countDocuments();
+/**
+ * Apollo Server instance
+ */
+const server = new ApolloServer({
+  schema,
+  introspection: true,
+});
 
-    return NextResponse.json({
-      status: "ok",
-      mongo: "connected",
-      users: count,
-    });
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: error.message },
-      { status: 500 }
-    );
-  }
+/**
+ * GraphQL handler for Next.js App Router
+ */
+// const handler = startServerAndCreateNextHandler(server, {
+//   context: async () => ({}),
+// });
+
+const handler = startServerAndCreateNextHandler<NextRequest>(server, {
+  context: async (req: NextRequest) => {
+    return createContext(req);
+  },
+});
+
+export async function GET(request: NextRequest) {
+  return handler(request);
+}
+
+export async function POST(request: NextRequest) {
+  return handler(request);
 }

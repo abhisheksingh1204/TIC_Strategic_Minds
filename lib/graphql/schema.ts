@@ -22,6 +22,14 @@ import { equipmentTypeDefs } from "./modules/equipment/equipment.typeDefs";
 import { equipmentResolvers } from "./modules/equipment/equipment.resolvers";
 
 
+import { analysisTypeDefs } from "./modules/analysis/analysis.typeDefs";
+import { analysisResolvers } from "./modules/analysis/analysis.resolvers";
+
+
+import { aggregationTypeDefs } from "./modules/aggregation/aggregation.typeDefs";
+import { aggregationResolvers } from "./modules/aggregation/aggregation.resolvers";
+
+
 
 
 export const schema = makeExecutableSchema({
@@ -33,12 +41,16 @@ export const schema = makeExecutableSchema({
     propertyTypeDefs,
     roomTypeDefs,
     equipmentTypeDefs,
+    analysisTypeDefs,
+    aggregationTypeDefs,
     
   ],
   resolvers: [
     authResolvers,
+    analysisResolvers,
     tariffResolvers,
     costResolvers,
+    aggregationResolvers,
     propertyResolvers,
     roomResolvers,
     equipmentResolvers,

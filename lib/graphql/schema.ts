@@ -8,15 +8,21 @@ import { baseTypeDefs } from "./base.typeDefs";
 import { authTypeDefs } from "./modules/auth/auth.typeDefs";
 import { authResolvers } from "./modules/auth/auth.resolvers";
 
+// PROPERTIES
+import { propertyTypeDefs } from "./modules/properties/property.typeDefs";
+import { propertyResolvers } from "./modules/properties/property.resolvers";
+
 
 
 export const schema = makeExecutableSchema({
   typeDefs: [
     baseTypeDefs,
     authTypeDefs,
+    propertyTypeDefs
     
   ],
   resolvers: [
     authResolvers,
+    propertyResolvers
   ],
 });

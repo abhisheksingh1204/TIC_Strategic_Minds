@@ -2,14 +2,13 @@
 
 import {
   ApolloClient,
-  InMemoryCache,
-  createHttpLink,
   ApolloLink,
+  createHttpLink,
+  InMemoryCache,
   Observable,
-  
 } from "@apollo/client";
-import { SetContextLink } from "@apollo/client/link/context";
 import { onError } from "@apollo/client/link/error";
+import { SetContextLink } from "@apollo/client/link/context";
 import {
   clearAuthTokens,
   getAccessToken,
@@ -17,8 +16,10 @@ import {
   setAuthTokens,
 } from "@/lib/auth";
 
+const graphqlUri = process.env.NEXT_PUBLIC_GRAPHQL_URL || "/api";
+
 const httpLink = createHttpLink({
-  uri: process.env.NEXT_PUBLIC_GRAPHQL_URL || "/api",
+  uri: graphqlUri,
 });
 
 const refreshMutation = `
@@ -40,19 +41,22 @@ const resolvePending = (token: string | null) => {
 };
 
 const shouldAttemptRefresh = (messages: string[] = [], codes: string[] = []) =>
-  messages.some((msg) => /unauthorized|expired|invalid/i.test(msg)) ||
+  messages.some((message) => /unauthorized|expired|invalid/i.test(message)) ||
   codes.includes("UNAUTHENTICATED");
 
 const requestTokenRefresh = async (): Promise<string | null> => {
   const refreshToken = getRefreshToken();
+
   if (!refreshToken) {
     clearAuthTokens();
     return null;
   }
 
-  const response = await fetch(process.env.NEXT_PUBLIC_GRAPHQL_URL || "/api", {
+  const response = await fetch(graphqlUri, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify({
       query: refreshMutation,
       variables: { refreshToken },
@@ -63,7 +67,7 @@ const requestTokenRefresh = async (): Promise<string | null> => {
   const nextAccessToken = payload?.data?.refreshToken?.accessToken as string | undefined;
   const nextRefreshToken = payload?.data?.refreshToken?.refreshToken as string | undefined;
 
-  if (!nextAccessToken || !nextRefreshToken) {
+  if (!response.ok || !nextAccessToken || !nextRefreshToken) {
     clearAuthTokens();
     return null;
   }
@@ -83,50 +87,31 @@ const authLink = new SetContextLink((prevContext) => {
   };
 });
 
-const errorLink = onError(({ graphQLErrors, operation, forward, networkError }) => {
-  const messages = (graphQLErrors ?? []).map((err) => err.message || "");
+const errorLink = onError((errorContext: any) => {
+  const { graphQLErrors, networkError, operation, forward } = errorContext;
+  const messages = (graphQLErrors ?? []).map((error: any) => error.message || "");
   const codes = (graphQLErrors ?? [])
-    .map((err) => (typeof err.extensions?.code === "string" ? err.extensions.code : ""))
+    .map((error: any) =>
+      typeof error.extensions?.code === "string" ? error.extensions.code : ""
+    )
     .filter(Boolean);
 
-  const networkUnauthorized =
-    typeof (networkError as { message?: string } | undefined)?.message === "string" &&
-    /401|unauthorized/i.test((networkError as { message?: string }).message ?? "");
-  const mustRefresh = shouldAttemptRefresh(messages, codes) || networkUnauthorized;
+  const networkMessage =
+    typeof (networkError as { message?: string } | undefined)?.message === "string"
+      ? (networkError as { message?: string }).message ?? ""
+      : "";
+  const mustRefresh =
+    shouldAttemptRefresh(messages, codes) || /401|unauthorized/i.test(networkMessage);
   const wasRetried = Boolean(operation.getContext().__wasRetried);
 
   if (!mustRefresh || wasRetried) {
     return;
   }
 
-    return new Observable((observer) => {
-      const retryWithToken = (token: string | null) => {
-        if (!token) {
-          observer.error(new Error("Unauthorized"));
-          return;
-        }
-
-        operation.setContext(({ headers }) => ({
-          headers: {
-            ...headers,
-            authorization: `Bearer ${token}`,
-          },
-          __wasRetried: true,
-        }));
-
-        const subscription = forward(operation).subscribe({
-          next: (value) => observer.next(value),
-          error: (err) => observer.error(err),
-          complete: () => observer.complete(),
-        });
-
-        return () => subscription.unsubscribe();
-      };
-
-      if (isRefreshing) {
-        pendingResolvers.push((token) => {
-          retryWithToken(token);
-        });
+  return new Observable((observer) => {
+    const retryWithToken = (token: string | null) => {
+      if (!token) {
+        observer.error(new Error("Unauthorized"));
         return;
       }
 
@@ -139,8 +124,8 @@ const errorLink = onError(({ graphQLErrors, operation, forward, networkError }) 
       }));
 
       const subscription = forward(operation).subscribe({
-        next: (value) => observer.next(value),
-        error: (err) => observer.error(err),
+        next: (value: any) => observer.next(value),
+        error: (error: any) => observer.error(error),
         complete: () => observer.complete(),
       });
 
@@ -155,16 +140,18 @@ const errorLink = onError(({ graphQLErrors, operation, forward, networkError }) 
     }
 
     isRefreshing = true;
-    requestTokenRefresh()
+
+    void requestTokenRefresh()
       .then((token) => {
         isRefreshing = false;
         resolvePending(token);
         retryWithToken(token);
       })
-      .catch((err) => {
+      .catch((error) => {
         isRefreshing = false;
+        clearAuthTokens();
         resolvePending(null);
-        observer.error(err);
+        observer.error(error);
       });
   });
 });

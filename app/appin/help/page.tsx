@@ -12,6 +12,14 @@ import {
 import { AppShell } from "@/components/app/AppShell";
 import { ME_QUERY } from "@/lib/graphql/queries/auth.queries";
 
+type MeQueryData = {
+  me: {
+    id?: string;
+    name?: string | null;
+    email?: string | null;
+  } | null;
+};
+
 const faqs = [
   {
     question: "How do I create a new property?",
@@ -32,7 +40,7 @@ const faqs = [
 ];
 
 export default function Help() {
-  const { data: meData } = useQuery(ME_QUERY, {
+  const { data: meData } = useQuery<MeQueryData>(ME_QUERY, {
     errorPolicy: "all",
     fetchPolicy: "network-only",
   });

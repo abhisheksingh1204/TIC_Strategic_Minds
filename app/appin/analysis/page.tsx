@@ -95,6 +95,34 @@ type UsageSessionRecord = {
   cost?: number | null;
 };
 
+type MeQueryData = {
+  me: {
+    id?: string;
+    name?: string | null;
+    email?: string | null;
+  } | null;
+};
+
+type MyPropertiesQueryData = {
+  myProperties: PropertyRecord[];
+};
+
+type RoomsByPropertyQueryData = {
+  roomsByProperty: RoomRecord[];
+};
+
+type EquipmentsByPropertyQueryData = {
+  equipmentsByProperty: Equipment[];
+};
+
+type EquipmentsByRoomQueryData = {
+  equipmentsByRoom: Equipment[];
+};
+
+type UsageSessionsQueryData = {
+  usageSessions: UsageSessionRecord[];
+};
+
 const ASSUMED_HOURS_PER_DAY = 4;
 const DAYS_PER_MONTH = 30;
 const RATE_PER_KWH = 8;
@@ -147,11 +175,11 @@ export default function Analysis() {
     data: propertiesData,
     loading: propertiesLoading,
     error: propertiesError,
-  } = useQuery(MY_PROPERTIES_QUERY, {
+  } = useQuery<MyPropertiesQueryData>(MY_PROPERTIES_QUERY, {
     errorPolicy: "all",
   });
 
-  const { data: meData } = useQuery(ME_QUERY, {
+  const { data: meData } = useQuery<MeQueryData>(ME_QUERY, {
     errorPolicy: "all",
     fetchPolicy: "network-only",
   });
@@ -161,7 +189,7 @@ export default function Analysis() {
     [propertiesData]
   );
 
-  const { data: roomsData } = useQuery(ROOMS_BY_PROPERTY_QUERY, {
+  const { data: roomsData } = useQuery<RoomsByPropertyQueryData>(ROOMS_BY_PROPERTY_QUERY, {
     variables: { propertyId: selectedPropertyId },
     skip: selectedPropertyId === "all",
   });
@@ -171,7 +199,7 @@ export default function Analysis() {
     [roomsData, selectedPropertyId]
   );
 
-  const { data: propertyEquipmentData } = useQuery(EQUIPMENTS_BY_PROPERTY_QUERY, {
+  const { data: propertyEquipmentData } = useQuery<EquipmentsByPropertyQueryData>(EQUIPMENTS_BY_PROPERTY_QUERY, {
     variables: { propertyId: selectedPropertyId },
     skip: selectedPropertyId === "all",
     fetchPolicy: "network-only",
@@ -185,14 +213,14 @@ export default function Analysis() {
     [propertyEquipmentData, selectedPropertyId]
   );
 
-  const { data: usageSessionsData } = useQuery(USAGE_SESSIONS_QUERY, {
+  const { data: usageSessionsData } = useQuery<UsageSessionsQueryData>(USAGE_SESSIONS_QUERY, {
     variables: { propertyId: selectedPropertyId },
     skip: selectedPropertyId === "all",
     fetchPolicy: "network-only",
   });
   const [updateUsageSessionDuration] = useMutation(UPDATE_USAGE_SESSION_DURATION_MUTATION);
 
-  const { data: equipmentData } = useQuery(EQUIPMENTS_BY_ROOM_QUERY, {
+  const { data: equipmentData } = useQuery<EquipmentsByRoomQueryData>(EQUIPMENTS_BY_ROOM_QUERY, {
     variables: { roomId: selectedRoomId },
     skip: selectedRoomId === "all",
     fetchPolicy: "network-only",
@@ -239,7 +267,7 @@ export default function Analysis() {
         Promise.all(
           properties.map((property) =>
             apolloClient
-              .query({
+              .query<RoomsByPropertyQueryData>({
                 query: ROOMS_BY_PROPERTY_QUERY,
                 variables: { propertyId: property.id },
                 fetchPolicy: "network-only",
@@ -250,7 +278,7 @@ export default function Analysis() {
         Promise.all(
           properties.map((property) =>
             apolloClient
-              .query({
+              .query<EquipmentsByPropertyQueryData>({
                 query: EQUIPMENTS_BY_PROPERTY_QUERY,
                 variables: { propertyId: property.id },
                 fetchPolicy: "network-only",
@@ -265,10 +293,9 @@ export default function Analysis() {
       const nextBreakdown = properties
         .map((property, index) => {
           const propertyRooms =
-            (roomResults[index]?.data?.roomsByProperty as RoomRecord[] | undefined) ?? [];
+            roomResults[index]?.data?.roomsByProperty ?? [];
           const propertyItems =
-            (equipmentResults[index]?.data?.equipmentsByProperty as Equipment[] | undefined) ??
-            [];
+            equipmentResults[index]?.data?.equipmentsByProperty ?? [];
 
           return {
             id: property.id,

@@ -151,6 +151,35 @@ type EquipmentRecord = {
   quantity: number;
 };
 
+type RoomsByPropertyQueryData = {
+  roomsByProperty: RoomRecord[];
+};
+
+type EquipmentsByRoomQueryData = {
+  equipmentsByRoom: EquipmentRecord[];
+};
+
+type ActiveTariffQueryData = {
+  activeTariff: {
+    tariffType: TariffType;
+    slabs?: Array<{
+      pricePerUnit: number;
+    }>;
+  } | null;
+};
+
+type CreateEquipmentMutationData = {
+  createEquipment: {
+    id: string;
+    roomId: string;
+    catalogId: string;
+    ratedPowerWatt: number;
+    hoursPerDay?: number;
+    isOn?: boolean;
+    quantity: number;
+  };
+};
+
 type SimulatorSnapshot = {
   placedDevices: PlacedDevice[];
   mcbOn: boolean;
@@ -259,7 +288,7 @@ export default function Simulator() {
     return () => window.clearTimeout(timeoutId);
   }, []);
 
-  const { data: roomData } = useQuery(ROOMS_BY_PROPERTY_QUERY, {
+  const { data: roomData } = useQuery<RoomsByPropertyQueryData>(ROOMS_BY_PROPERTY_QUERY, {
     variables: { propertyId },
     skip: !propertyId,
     fetchPolicy: "network-only",
@@ -278,13 +307,13 @@ export default function Simulator() {
     loading: equipmentLoading,
     error: equipmentError,
     refetch: refetchEquipments,
-  } = useQuery(EQUIPMENTS_BY_ROOM_QUERY, {
+  } = useQuery<EquipmentsByRoomQueryData>(EQUIPMENTS_BY_ROOM_QUERY, {
     variables: { roomId },
     skip: !roomId,
     fetchPolicy: "network-only",
   });
 
-  const [createEquipment] = useMutation(CREATE_EQUIPMENT_MUTATION);
+  const [createEquipment] = useMutation<CreateEquipmentMutationData>(CREATE_EQUIPMENT_MUTATION);
   const [updateEquipment] = useMutation(UPDATE_EQUIPMENT_MUTATION);
   const [deleteEquipment] = useMutation(DELETE_EQUIPMENT_MUTATION);
   const [createTariff] = useMutation(CREATE_TARIFF_MUTATION);
@@ -296,7 +325,7 @@ export default function Simulator() {
     return `${year}-${month}-${day}`;
   }, []);
 
-  const { data: activeTariffData } = useQuery(ACTIVE_TARIFF_QUERY, {
+  const { data: activeTariffData } = useQuery<ActiveTariffQueryData>(ACTIVE_TARIFF_QUERY, {
     variables: { propertyId, date: todayDate },
     skip: !propertyId,
     fetchPolicy: "network-only",

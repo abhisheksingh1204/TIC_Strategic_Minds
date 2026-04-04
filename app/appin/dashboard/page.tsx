@@ -33,6 +33,22 @@ type RoomRecord = {
   updatedAt: string;
 };
 
+type MeQueryData = {
+  me: {
+    id?: string;
+    name?: string | null;
+    email?: string | null;
+  } | null;
+};
+
+type MyPropertiesQueryData = {
+  myProperties: PropertyRecord[];
+};
+
+type RoomsByPropertyQueryData = {
+  roomsByProperty: RoomRecord[];
+};
+
 const formatDate = (value?: string) => formatDateSafe(value);
 
 export default function Dashboard() {
@@ -40,7 +56,7 @@ export default function Dashboard() {
   const apolloClient = useApolloClient();
   const [rooms, setRooms] = useState<RoomRecord[]>([]);
 
-  const { data: meData } = useQuery(ME_QUERY, {
+  const { data: meData } = useQuery<MeQueryData>(ME_QUERY, {
     errorPolicy: "all",
     fetchPolicy: "network-only",
   });
@@ -49,7 +65,7 @@ export default function Dashboard() {
     data: propertiesData,
     loading: propertiesLoading,
     error: propertiesError,
-  } = useQuery(MY_PROPERTIES_QUERY, {
+  } = useQuery<MyPropertiesQueryData>(MY_PROPERTIES_QUERY, {
     errorPolicy: "all",
     fetchPolicy: "cache-and-network",
   });
@@ -71,19 +87,19 @@ export default function Dashboard() {
       const results = await Promise.all(
         properties.map((property) =>
           apolloClient
-            .query({
-              query: ROOMS_BY_PROPERTY_QUERY,
-              variables: { propertyId: property.id },
-              fetchPolicy: "network-only",
-            })
-            .catch(() => ({ data: { roomsByProperty: [] } }))
+              .query<RoomsByPropertyQueryData>({
+                query: ROOMS_BY_PROPERTY_QUERY,
+                variables: { propertyId: property.id },
+                fetchPolicy: "network-only",
+              })
+              .catch(() => ({ data: { roomsByProperty: [] } }))
         )
       );
 
       if (cancelled) return;
 
       const allRooms = results.flatMap(
-        (result) => (result.data?.roomsByProperty as RoomRecord[] | undefined) ?? []
+        (result) => result.data?.roomsByProperty ?? []
       );
 
       setRooms(allRooms);

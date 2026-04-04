@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useMutation, useQuery } from "@apollo/client/react";
+import { useMutation, useQuery } from "@apollo/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -41,6 +41,7 @@ import { toast } from "sonner";
 import { DevicePopup } from "@/components/DevicePopup";
 import { SpecificationsPanel } from "@/components/SpecificationsPanel";
 import { ROOMS_BY_PROPERTY_QUERY } from "@/lib/graphql/queries/rooms.queries";
+import { MY_PROPERTIES_QUERY } from "@/lib/graphql/queries/properties.queries";
 import {
   CREATE_EQUIPMENT_MUTATION,
   DELETE_EQUIPMENT_MUTATION,
@@ -50,6 +51,7 @@ import {
 import {
   ACTIVE_TARIFF_QUERY,
   CREATE_TARIFF_MUTATION,
+  UPDATE_TARIFF_MUTATION,
 } from "@/lib/graphql/queries/tariff.queries";
 
 interface Device {
@@ -104,11 +106,16 @@ type BillingBreakdown = {
   cost: number;
 };
 
+type TariffSlabForm = {
+  uptoKwh: string;
+  pricePerUnit: string;
+};
+
 const DEFAULT_FLAT_PRICE_PER_UNIT = "8";
-const STANDARD_SLABS: BillingBreakdown[] = [
-  { slabUpto: 100, pricePerUnit: 3, consumedKwh: 0, cost: 0 },
-  { slabUpto: 200, pricePerUnit: 5, consumedKwh: 0, cost: 0 },
-  { slabUpto: null, pricePerUnit: 7, consumedKwh: 0, cost: 0 },
+const DEFAULT_SLAB_FORMS: TariffSlabForm[] = [
+  { uptoKwh: "100", pricePerUnit: "3" },
+  { uptoKwh: "200", pricePerUnit: "5" },
+  { uptoKwh: "", pricePerUnit: "7" },
 ];
 
 const categoryIconMap: Record<string, React.ElementType> = {
@@ -142,6 +149,11 @@ type RoomRecord = {
   roomName: string;
 };
 
+type PropertyRecord = {
+  id: string;
+  propertyName: string;
+};
+
 type EquipmentRecord = {
   id: string;
   catalogId: string;
@@ -149,35 +161,6 @@ type EquipmentRecord = {
   hoursPerDay?: number;
   isOn?: boolean;
   quantity: number;
-};
-
-type RoomsByPropertyQueryData = {
-  roomsByProperty: RoomRecord[];
-};
-
-type EquipmentsByRoomQueryData = {
-  equipmentsByRoom: EquipmentRecord[];
-};
-
-type ActiveTariffQueryData = {
-  activeTariff: {
-    tariffType: TariffType;
-    slabs?: Array<{
-      pricePerUnit: number;
-    }>;
-  } | null;
-};
-
-type CreateEquipmentMutationData = {
-  createEquipment: {
-    id: string;
-    roomId: string;
-    catalogId: string;
-    ratedPowerWatt: number;
-    hoursPerDay?: number;
-    isOn?: boolean;
-    quantity: number;
-  };
 };
 
 type SimulatorSnapshot = {
@@ -190,7 +173,8 @@ const isMongoId = (value: string) => /^[a-f0-9]{24}$/i.test(value);
 const calculateBillBreakdown = (
   totalKwh: number,
   tariffType: TariffType,
-  flatPricePerUnit: number
+  flatPricePerUnit: number,
+  slabs: Array<{ uptoKwh: number | null; pricePerUnit: number }>
 ) => {
   if (tariffType === "FLAT") {
     const totalCost = totalKwh * flatPricePerUnit;
@@ -212,24 +196,30 @@ const calculateBillBreakdown = (
   let prevLimit = 0;
   let totalCost = 0;
 
-  const breakdown = STANDARD_SLABS.map((slab) => {
+  const breakdown: BillingBreakdown[] = slabs.map((slab) => {
     if (remaining <= 0) {
-      return { ...slab };
+      return {
+        slabUpto: slab.uptoKwh,
+        pricePerUnit: slab.pricePerUnit,
+        consumedKwh: 0,
+        cost: 0,
+      };
     }
 
     const slabLimit =
-      slab.slabUpto != null ? slab.slabUpto - prevLimit : remaining;
+      slab.uptoKwh != null ? slab.uptoKwh - prevLimit : remaining;
     const consumedKwh = Math.min(remaining, slabLimit);
     const cost = consumedKwh * slab.pricePerUnit;
 
     remaining -= consumedKwh;
     totalCost += cost;
-    if (slab.slabUpto != null) {
-      prevLimit = slab.slabUpto;
+    if (slab.uptoKwh != null) {
+      prevLimit = slab.uptoKwh;
     }
 
     return {
-      ...slab,
+      slabUpto: slab.uptoKwh,
+      pricePerUnit: slab.pricePerUnit,
       consumedKwh,
       cost,
     };
@@ -264,9 +254,10 @@ export default function Simulator() {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportGeneratedAt, setReportGeneratedAt] = useState("");
-  const [tariffDialogOpen, setTariffDialogOpen] = useState(true);
+  const [tariffDialogOpen, setTariffDialogOpen] = useState(false);
   const [tariffType, setTariffType] = useState<TariffType>("FLAT");
   const [flatPricePerUnit, setFlatPricePerUnit] = useState(DEFAULT_FLAT_PRICE_PER_UNIT);
+  const [slabForms, setSlabForms] = useState<TariffSlabForm[]>(DEFAULT_SLAB_FORMS);
   const mcbOnRef = useRef(mcbOn);
   const historyRef = useRef<SimulatorSnapshot[]>([]);
   const historyIndexRef = useRef(0);
@@ -288,17 +279,24 @@ export default function Simulator() {
     return () => window.clearTimeout(timeoutId);
   }, []);
 
-  const { data: roomData } = useQuery<RoomsByPropertyQueryData>(ROOMS_BY_PROPERTY_QUERY, {
+  const { data: roomData } = useQuery(ROOMS_BY_PROPERTY_QUERY, {
     variables: { propertyId },
+    skip: !propertyId,
+    fetchPolicy: "network-only",
+  });
+  const { data: propertiesData } = useQuery(MY_PROPERTIES_QUERY, {
     skip: !propertyId,
     fetchPolicy: "network-only",
   });
 
   const rooms: RoomRecord[] = roomData?.roomsByProperty ?? [];
+  const properties: PropertyRecord[] = propertiesData?.myProperties ?? [];
   const normalizedRoomName = roomName.trim().toLowerCase();
   const activeRoom =
     rooms.find((room) => room.roomName.trim().toLowerCase() === normalizedRoomName) ??
     null;
+  const propertyName =
+    properties.find((property) => property.id === propertyId)?.propertyName ?? "N/A";
   const resolvedRoomId = routeRoomId || activeRoom?.id || "";
   const roomId = isMongoId(resolvedRoomId) ? resolvedRoomId : "";
 
@@ -307,16 +305,17 @@ export default function Simulator() {
     loading: equipmentLoading,
     error: equipmentError,
     refetch: refetchEquipments,
-  } = useQuery<EquipmentsByRoomQueryData>(EQUIPMENTS_BY_ROOM_QUERY, {
+  } = useQuery(EQUIPMENTS_BY_ROOM_QUERY, {
     variables: { roomId },
     skip: !roomId,
     fetchPolicy: "network-only",
   });
 
-  const [createEquipment] = useMutation<CreateEquipmentMutationData>(CREATE_EQUIPMENT_MUTATION);
+  const [createEquipment] = useMutation(CREATE_EQUIPMENT_MUTATION);
   const [updateEquipment] = useMutation(UPDATE_EQUIPMENT_MUTATION);
   const [deleteEquipment] = useMutation(DELETE_EQUIPMENT_MUTATION);
   const [createTariff] = useMutation(CREATE_TARIFF_MUTATION);
+  const [updateTariff] = useMutation(UPDATE_TARIFF_MUTATION);
   const todayDate = useMemo(() => {
     const now = new Date();
     const year = now.getFullYear();
@@ -325,13 +324,14 @@ export default function Simulator() {
     return `${year}-${month}-${day}`;
   }, []);
 
-  const { data: activeTariffData } = useQuery<ActiveTariffQueryData>(ACTIVE_TARIFF_QUERY, {
+  const { data: activeTariffData, loading: activeTariffLoading } = useQuery(ACTIVE_TARIFF_QUERY, {
     variables: { propertyId, date: todayDate },
     skip: !propertyId,
     fetchPolicy: "network-only",
   });
 
   const didHydrateFromServer = Boolean(roomId && equipmentData);
+  const hasSavedTariff = Boolean(activeTariffData?.activeTariff?._id);
   const storageKey = useMemo(
     () => `simulator:${propertyId || "local"}:${roomName.trim().toLowerCase() || "default-room"}`,
     [propertyId, roomName]
@@ -349,6 +349,7 @@ export default function Simulator() {
           devices?: PlacedDevice[];
           tariffType?: TariffType;
           flatPricePerUnit?: string;
+          slabForms?: TariffSlabForm[];
         };
         const snapshotDevices =
           Array.isArray(parsed.placedDevices)
@@ -456,6 +457,7 @@ export default function Simulator() {
           devices?: PlacedDevice[];
           tariffType?: TariffType;
           flatPricePerUnit?: string;
+          slabForms?: TariffSlabForm[];
         };
         const nextDevices =
           Array.isArray(parsed.placedDevices)
@@ -472,11 +474,16 @@ export default function Simulator() {
           typeof parsed.flatPricePerUnit === "string"
             ? parsed.flatPricePerUnit
             : DEFAULT_FLAT_PRICE_PER_UNIT;
+        const nextSlabForms =
+          Array.isArray(parsed.slabForms) && parsed.slabForms.length > 0
+            ? parsed.slabForms
+            : DEFAULT_SLAB_FORMS;
 
         setPlacedDevices(nextDevices);
         setMcbOn(nextMcbOn);
         setTariffType(nextTariffType);
         setFlatPricePerUnit(nextFlatPricePerUnit);
+        setSlabForms(nextSlabForms);
         historyRef.current = [{ placedDevices: nextDevices, mcbOn: nextMcbOn }];
         historyIndexRef.current = 0;
       } catch {
@@ -490,16 +497,21 @@ export default function Simulator() {
   useEffect(() => {
     const activeTariff = activeTariffData?.activeTariff;
 
-    if (!activeTariff) {
+    if (!propertyId || activeTariffLoading) {
       return;
     }
 
-    const nextTariffType =
-      activeTariff.tariffType === "SLAB" || activeTariff.tariffType === "FLAT"
-        ? activeTariff.tariffType
-        : "FLAT";
-
     const timeoutId = window.setTimeout(() => {
+      if (!activeTariff) {
+        setTariffDialogOpen(true);
+        return;
+      }
+
+      const nextTariffType =
+        activeTariff.tariffType === "SLAB" || activeTariff.tariffType === "FLAT"
+          ? activeTariff.tariffType
+          : "FLAT";
+
       setTariffType(nextTariffType);
 
       if (nextTariffType === "FLAT") {
@@ -508,11 +520,22 @@ export default function Simulator() {
             ? String(activeTariff.slabs[0].pricePerUnit)
             : DEFAULT_FLAT_PRICE_PER_UNIT;
         setFlatPricePerUnit(nextFlatPrice);
+      } else {
+        const nextSlabForms =
+          Array.isArray(activeTariff.slabs) && activeTariff.slabs.length > 0
+            ? activeTariff.slabs.map((slab: { uptoKwh?: number | null; pricePerUnit: number }) => ({
+                uptoKwh: slab.uptoKwh == null ? "" : String(slab.uptoKwh),
+                pricePerUnit: String(slab.pricePerUnit),
+              }))
+            : DEFAULT_SLAB_FORMS;
+        setSlabForms(nextSlabForms);
       }
+
+      setTariffDialogOpen(false);
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
-  }, [activeTariffData]);
+  }, [activeTariffData, activeTariffLoading, propertyId]);
 
   useEffect(() => {
     if (!roomId || equipmentLoading || Boolean(equipmentError) || !equipmentData) {
@@ -544,9 +567,10 @@ export default function Simulator() {
       mcbOn,
       tariffType,
       flatPricePerUnit,
+      slabForms,
     };
     localStorage.setItem(storageKey, JSON.stringify(payload));
-  }, [flatPricePerUnit, mcbOn, placedDevices, propertyId, roomName, storageKey, tariffType]);
+  }, [flatPricePerUnit, mcbOn, placedDevices, propertyId, roomName, slabForms, storageKey, tariffType]);
 
   const pushHistory = useCallback((nextDevices: PlacedDevice[], nextMcbOn: boolean) => {
     const snapshot: SimulatorSnapshot = {
@@ -946,6 +970,54 @@ export default function Simulator() {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
   }, [flatPricePerUnit]);
 
+  const normalizedSlabs = useMemo(() => {
+    return slabForms
+      .map((slab, index) => {
+        const rawPrice = Number.parseFloat(slab.pricePerUnit);
+        const rawLimit = slab.uptoKwh.trim() === "" ? null : Number.parseFloat(slab.uptoKwh);
+        const pricePerUnit = Number.isFinite(rawPrice) && rawPrice > 0 ? rawPrice : 0;
+        const uptoKwh =
+          rawLimit == null || Number.isNaN(rawLimit) ? null : rawLimit;
+
+        return {
+          index,
+          uptoKwh,
+          pricePerUnit,
+          isValid:
+            pricePerUnit > 0 &&
+            (uptoKwh == null || uptoKwh > 0),
+        };
+      })
+      .filter((slab) => slab.pricePerUnit > 0 || slab.uptoKwh != null);
+  }, [slabForms]);
+
+  const isSlabConfigurationValid = useMemo(() => {
+    if (normalizedSlabs.length === 0) {
+      return false;
+    }
+
+    let previousLimit = 0;
+
+    for (let index = 0; index < normalizedSlabs.length; index += 1) {
+      const slab = normalizedSlabs[index];
+      if (!slab.isValid) {
+        return false;
+      }
+
+      if (slab.uptoKwh == null) {
+        return index === normalizedSlabs.length - 1;
+      }
+
+      if (slab.uptoKwh <= previousLimit) {
+        return false;
+      }
+
+      previousLimit = slab.uptoKwh;
+    }
+
+    return true;
+  }, [normalizedSlabs]);
+
   const persistTariffSelection = useCallback(async () => {
     if (!propertyId) {
       return;
@@ -954,10 +1026,32 @@ export default function Simulator() {
     const slabs =
       tariffType === "FLAT"
         ? [{ pricePerUnit: normalizedFlatPricePerUnit }]
-        : STANDARD_SLABS.map((slab) => ({
-            uptoKwh: slab.slabUpto ?? undefined,
+        : normalizedSlabs.map((slab) => ({
+            uptoKwh: slab.uptoKwh ?? undefined,
             pricePerUnit: slab.pricePerUnit,
           }));
+
+    const activeTariffId = activeTariffData?.activeTariff?._id;
+
+    if (activeTariffId) {
+      await updateTariff({
+        variables: {
+          tariffId: activeTariffId,
+          tariffType,
+          slabs,
+        },
+        refetchQueries: [
+          {
+            query: ACTIVE_TARIFF_QUERY,
+            variables: {
+              propertyId,
+              date: todayDate,
+            },
+          },
+        ],
+      });
+      return;
+    }
 
     await createTariff({
       variables: {
@@ -977,11 +1071,14 @@ export default function Simulator() {
       ],
     });
   }, [
+    activeTariffData,
     createTariff,
     normalizedFlatPricePerUnit,
+    normalizedSlabs,
     propertyId,
     tariffType,
     todayDate,
+    updateTariff,
   ]);
 
   const billingSummary = useMemo(
@@ -989,9 +1086,13 @@ export default function Simulator() {
       calculateBillBreakdown(
         monthlyConsumptionKwh,
         tariffType,
-        normalizedFlatPricePerUnit
+        normalizedFlatPricePerUnit,
+        normalizedSlabs.map((slab) => ({
+          uptoKwh: slab.uptoKwh,
+          pricePerUnit: slab.pricePerUnit,
+        }))
       ),
-    [monthlyConsumptionKwh, normalizedFlatPricePerUnit, tariffType]
+    [monthlyConsumptionKwh, normalizedFlatPricePerUnit, normalizedSlabs, tariffType]
   );
 
   const effectiveMonthlyRate = useMemo(
@@ -1007,6 +1108,8 @@ export default function Simulator() {
     return (activeLoad / 1000).toFixed(2);
   };
 
+  const liveLoadKw = useMemo(() => Number(calculateTotalLoad()), [placedDevices]);
+
   const handleSave = () => {
     const payload = {
       roomName,
@@ -1017,6 +1120,7 @@ export default function Simulator() {
       mcbOn,
       tariffType,
       flatPricePerUnit,
+      slabForms,
     };
     localStorage.setItem(storageKey, JSON.stringify(payload));
     toast.success("Room configuration saved");
@@ -1143,8 +1247,8 @@ export default function Simulator() {
         <div className="flex items-center gap-3">
           <SpecificationsPanel
             devices={placedDevices}
-            estimatedCost={billingSummary.totalCost}
-            costLabel={`Est. Monthly (${tariffType})`}
+            liveLoadKw={liveLoadKw}
+            statusLabel="Live Active Load"
             onDetails={() => setDetailsOpen(true)}
           />
           <Button variant="glass" size="sm" onClick={handleUndo}>
@@ -1153,6 +1257,15 @@ export default function Simulator() {
           <Button variant="glass" size="sm" onClick={handleRedo}>
             <Redo2 className="h-4 w-4" />
           </Button>
+          {propertyId && (
+            <Button
+              variant="glass"
+              size="sm"
+              onClick={() => setTariffDialogOpen(true)}
+            >
+              Tariff
+            </Button>
+          )}
           <Button variant="electric" size="sm" onClick={handleSave}>
             <Save className="h-4 w-4 mr-2" />
             Save
@@ -1164,20 +1277,18 @@ export default function Simulator() {
         {/* Left Section - Room Layout (2/3 width) */}
         <main
           ref={layoutRef}
-          className="simulator-room app-content-panel flex-1 overflow-auto"
+          className="app-content-panel flex-1 overflow-auto p-0"
           onDragOver={handleLayoutDragOver}
           onDrop={handleLayoutDrop}
+          style={{
+            backgroundImage:
+              "linear-gradient(rgba(120,210,255,0.18) 1px, transparent 1px), linear-gradient(90deg, rgba(120,210,255,0.18) 1px, transparent 1px)",
+            backgroundSize: "48px 48px",
+            backgroundPosition: "0 0",
+          }}
         >
           {/* Placed Devices */}
-          <div className="simulator-floor relative min-h-[1200px] w-full p-8">
-            <div className="absolute inset-0 simulator-grid pointer-events-none" />
-            <div className="room-wall room-wall-top" />
-            <div className="room-wall room-wall-right" />
-            <div className="room-wall room-wall-bottom" />
-            <div className="room-wall room-wall-left" />
-            <div className="room-window" />
-            <div className="room-door" />
-            <div className="room-rug" />
+          <div className="relative min-h-[1600px] w-full overflow-hidden rounded-[1.75rem]">
             {/* Placed Items */}
             {placedDevices.map((device) => {
               const Icon = device.icon;
@@ -1229,17 +1340,6 @@ export default function Simulator() {
                 </div>
               );
             })}
-
-            {/* Empty State */}
-            {placedDevices.length === 0 && (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-center text-muted-foreground">
-                  <Lightbulb className="h-16 w-16 mx-auto mb-4 opacity-30" />
-                  <p className="text-lg">Drag devices from the panel</p>
-                  <p className="text-sm">or click on them to add to your room</p>
-                </div>
-              </div>
-            )}
           </div>
         </main>
 
@@ -1371,8 +1471,8 @@ export default function Simulator() {
                 <p className="text-xl font-bold text-foreground">{calculateTotalLoad()} kW</p>
               </div>
               <div className="p-3 rounded-lg bg-accent/10">
-                <p className="text-xs text-muted-foreground">Monthly Est.</p>
-                <p className="text-xl font-bold text-accent">Rs.{billingSummary.totalCost.toFixed(2)}</p>
+                <p className="text-xs text-muted-foreground">Power State</p>
+                <p className="text-xl font-bold text-accent">{mcbOn ? "LIVE" : "MCB OFF"}</p>
               </div>
             </div>
             <Button variant="neon" className="w-full mt-4" onClick={handleGenerateReport}>
@@ -1408,17 +1508,20 @@ export default function Simulator() {
           if (!open && tariffType === "FLAT" && normalizedFlatPricePerUnit <= 0) {
             return;
           }
+          if (!open && tariffType === "SLAB" && !isSlabConfigurationValid) {
+            return;
+          }
           setTariffDialogOpen(open);
         }}
-      >
-        <DialogContent className="max-w-xl bg-card border-border">
-          <DialogHeader>
-            <DialogTitle>Select Tariff Before Configuring The Room</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Choose the billing type first. This tariff will be used for the simulator bill estimate and report.
-            </p>
+        >
+          <DialogContent className="max-w-xl bg-card border-border">
+            <DialogHeader>
+            <DialogTitle>{hasSavedTariff ? "Edit Saved Tariff" : "Select Tariff Before Configuring The Room"}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                This tariff is saved once per property in the database and reused automatically on future visits. Update it only when the billing plan changes.
+              </p>
 
             <div className="space-y-2">
               <label className="text-sm text-foreground">Tariff Type</label>
@@ -1450,17 +1553,90 @@ export default function Simulator() {
                 )}
               </div>
             ) : (
-              <div className="rounded-lg border border-border bg-secondary/20 p-4 text-sm text-muted-foreground">
-                <p>0 - 100 kWh: Rs.3/unit</p>
-                <p>101 - 200 kWh: Rs.5/unit</p>
-                <p>Above 200 kWh: Rs.7/unit</p>
+              <div className="space-y-3 rounded-lg border border-border bg-secondary/20 p-4">
+                {slabForms.map((slab, index) => (
+                  <div key={`slab-${index}`} className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+                    <div className="space-y-2">
+                      <label className="text-xs text-muted-foreground">
+                        Upper Limit {index === slabForms.length - 1 ? "(leave blank for open-ended)" : ""}
+                      </label>
+                      <Input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={slab.uptoKwh}
+                        onChange={(event) =>
+                          setSlabForms((prev) =>
+                            prev.map((item, itemIndex) =>
+                              itemIndex === index ? { ...item, uptoKwh: event.target.value } : item
+                            )
+                          )
+                        }
+                        placeholder={index === slabForms.length - 1 ? "No limit" : "Enter kWh limit"}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs text-muted-foreground">Price Per Unit</label>
+                      <Input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={slab.pricePerUnit}
+                        onChange={(event) =>
+                          setSlabForms((prev) =>
+                            prev.map((item, itemIndex) =>
+                              itemIndex === index ? { ...item, pricePerUnit: event.target.value } : item
+                            )
+                          )
+                        }
+                        placeholder="Enter Rs./kWh"
+                      />
+                    </div>
+                    <div className="flex items-end">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        disabled={slabForms.length <= 1}
+                        onClick={() =>
+                          setSlabForms((prev) => prev.filter((_, itemIndex) => itemIndex !== index))
+                        }
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs text-muted-foreground">
+                    Limits must increase from top to bottom. Leave the last limit blank for the final open-ended slab.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() =>
+                      setSlabForms((prev) => [...prev, { uptoKwh: "", pricePerUnit: "" }])
+                    }
+                  >
+                    Add Slab
+                  </Button>
+                </div>
+
+                {!isSlabConfigurationValid && (
+                  <p className="text-xs text-destructive">
+                    Enter valid slab prices and strictly increasing upper limits. The final slab can be open-ended.
+                  </p>
+                )}
               </div>
             )}
 
             <div className="flex justify-end">
               <Button
                 variant="electric"
-                disabled={tariffType === "FLAT" && normalizedFlatPricePerUnit <= 0}
+                disabled={
+                  (tariffType === "FLAT" && normalizedFlatPricePerUnit <= 0) ||
+                  (tariffType === "SLAB" && !isSlabConfigurationValid)
+                }
                 onClick={async () => {
                   try {
                     await persistTariffSelection();
@@ -1473,8 +1649,8 @@ export default function Simulator() {
                     toast.error(message);
                   }
                 }}
-              >
-                Continue To Simulator
+                >
+                {hasSavedTariff ? "Update Tariff" : "Continue To Simulator"}
               </Button>
             </div>
           </div>
@@ -1541,15 +1717,15 @@ export default function Simulator() {
               </div>
               <div className="rounded-md border border-border p-3">
                 <p className="text-muted-foreground">Property</p>
-                <p className="font-medium">{propertyId || "N/A"}</p>
+                <p className="font-medium break-words">{propertyName}</p>
               </div>
               <div className="rounded-md border border-border p-3">
                 <p className="text-muted-foreground">Total Devices</p>
                 <p className="font-medium">{placedDevices.length}</p>
               </div>
               <div className="rounded-md border border-border p-3">
-                <p className="text-muted-foreground">Estimated Monthly</p>
-                <p className="font-medium">Rs.{billingSummary.totalCost.toFixed(2)}</p>
+                <p className="text-muted-foreground">Live Active Load</p>
+                <p className="font-medium">{liveLoadKw.toFixed(2)} kW</p>
               </div>
               <div className="rounded-md border border-border p-3">
                 <p className="text-muted-foreground">Tariff</p>
@@ -1588,21 +1764,21 @@ export default function Simulator() {
           <ScrollArea className="max-h-[70vh] pr-4">
             <div className="space-y-6 text-sm">
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <div className="rounded-md border border-border p-4">
+                <div className="min-w-0 rounded-md border border-border p-4">
                   <p className="text-xs text-muted-foreground">Room</p>
-                  <p className="mt-1 font-medium text-foreground">{roomName}</p>
+                  <p className="mt-1 font-medium text-foreground break-words">{roomName}</p>
                 </div>
-                <div className="rounded-md border border-border p-4">
+                <div className="min-w-0 rounded-md border border-border p-4">
                   <p className="text-xs text-muted-foreground">Property</p>
-                  <p className="mt-1 font-medium text-foreground">{propertyId || "N/A"}</p>
+                  <p className="mt-1 font-medium text-foreground break-words">{propertyName}</p>
                 </div>
-                <div className="rounded-md border border-border p-4">
+                <div className="min-w-0 rounded-md border border-border p-4">
                   <p className="text-xs text-muted-foreground">Generated</p>
-                  <p className="mt-1 font-medium text-foreground">
+                  <p className="mt-1 break-words text-sm font-medium leading-6 text-foreground">
                     {reportGeneratedAt || new Date().toLocaleString()}
                   </p>
                 </div>
-                <div className="rounded-md border border-border p-4">
+                <div className="min-w-0 rounded-md border border-border p-4">
                   <p className="text-xs text-muted-foreground">MCB Status</p>
                   <p className="mt-1 font-medium text-foreground">{mcbOn ? "ON" : "OFF"}</p>
                 </div>
@@ -1739,13 +1915,13 @@ export default function Simulator() {
                 </div>
               </div>
 
-              <div className="rounded-lg border border-border overflow-hidden">
-                <div className="grid grid-cols-[minmax(0,1.8fr)_100px_100px_100px_120px] gap-3 border-b border-border bg-secondary/30 px-4 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <div className="overflow-x-auto rounded-lg border border-border">
+                <div className="grid min-w-[720px] grid-cols-[minmax(160px,1.8fr)_100px_120px_100px_140px] gap-3 border-b border-border bg-secondary/30 px-4 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   <span>Device</span>
                   <span>Power</span>
-                  <span>Hours/Day</span>
+                  <span className="whitespace-nowrap">Hours/Day</span>
                   <span>Status</span>
-                  <span>Monthly kWh</span>
+                  <span className="whitespace-nowrap">Monthly kWh</span>
                 </div>
 
                 {placedDevices.length === 0 ? (
@@ -1756,7 +1932,7 @@ export default function Simulator() {
                   placedDevices.map((device) => (
                     <div
                       key={device.instanceId}
-                      className="grid grid-cols-[minmax(0,1.8fr)_100px_100px_100px_120px] gap-3 border-b border-border/70 px-4 py-3 text-sm last:border-b-0"
+                      className="grid min-w-[720px] grid-cols-[minmax(160px,1.8fr)_100px_120px_100px_140px] gap-3 border-b border-border/70 px-4 py-3 text-sm last:border-b-0"
                     >
                       <div className="min-w-0">
                         <p className="truncate font-medium text-foreground">{device.name}</p>

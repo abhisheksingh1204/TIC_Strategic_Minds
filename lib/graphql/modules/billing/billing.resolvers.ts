@@ -104,6 +104,12 @@ export const billingResolvers = {
     dailyLimit: (settings: any) => settings.dailyLimit ?? settings.daily_limit ?? null,
     monthlyLimit: (settings: any) => settings.monthlyLimit ?? settings.monthly_limit ?? null,
     alertType: (settings: any) => settings.alertType ?? settings.alert_type ?? "KWH",
+    lastDailyAlertSent: (settings: any) =>
+      settings.lastDailyAlertSent ?? settings.last_daily_alert_sent ?? null,
+    lastMonthlyAlertSent: (settings: any) =>
+      settings.lastMonthlyAlertSent ?? settings.last_monthly_alert_sent ?? null,
+    lastAlertError: (settings: any) =>
+      settings.lastAlertError ?? settings.last_alert_error ?? null,
   },
 
   BillPreview: {

@@ -11,6 +11,7 @@ import UsageSession from "@/models/UsageSession.model";
 import { getDayRange, parseDateInput } from "@/lib/date";
 import { AggregationService } from "../aggregation/aggregation.service";
 import { BillingPreviewService } from "./billingPreview.service";
+import { BillingSettingsService } from "./billingSettings.service";
 import { CostService } from "../cost/cost.service";
 
 type TariffType = "FLAT" | "SLAB";
@@ -362,6 +363,18 @@ export class BillingService {
         await Bill.findByIdAndDelete(bill._id);
       }
       throw error;
+    }
+
+    try {
+      await BillingSettingsService.checkAndSendAlertsForGeneratedBill(
+        propertyId,
+        from,
+        to,
+        preview.totalKwh,
+        preview.totalAmount
+      );
+    } catch (error) {
+      console.warn("Billing alert check warning:", error);
     }
 
     return bill;

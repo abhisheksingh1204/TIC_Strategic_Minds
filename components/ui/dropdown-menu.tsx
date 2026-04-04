@@ -20,8 +20,26 @@ const useDropdown = () => {
   return ctx;
 };
 
-export const DropdownMenu = ({ children }: { children: React.ReactNode }) => {
-  const [open, setOpen] = React.useState(false);
+export const DropdownMenu = ({
+  children,
+  open: controlledOpen,
+  onOpenChange,
+}: {
+  children: React.ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}) => {
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(false);
+  const open = controlledOpen ?? uncontrolledOpen;
+  const setOpen = React.useCallback(
+    (nextOpen: boolean) => {
+      if (controlledOpen === undefined) {
+        setUncontrolledOpen(nextOpen);
+      }
+      onOpenChange?.(nextOpen);
+    },
+    [controlledOpen, onOpenChange]
+  );
 
   return (
     <DropdownContext.Provider value={{ open, setOpen }}>
@@ -85,7 +103,7 @@ export const DropdownMenuContent = ({
   return (
     <div
       className={cx(
-        "absolute z-50 mt-2 min-w-[180px] rounded-2xl border border-border bg-card/95 p-2 shadow-2xl backdrop-blur-2xl",
+        "absolute z-50 mt-2 min-w-[180px] rounded-2xl border border-white/10 bg-[rgba(9,16,29,0.92)] p-2 shadow-2xl backdrop-blur-[20px]",
         alignClass,
         className
       )}

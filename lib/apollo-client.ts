@@ -6,6 +6,7 @@ import {
   createHttpLink,
   ApolloLink,
   Observable,
+  
 } from "@apollo/client";
 import { SetContextLink } from "@apollo/client/link/context";
 import { onError } from "@apollo/client/link/error";
@@ -59,12 +60,8 @@ const requestTokenRefresh = async (): Promise<string | null> => {
   });
 
   const payload = await response.json();
-  const nextAccessToken = payload?.data?.refreshToken?.accessToken as
-    | string
-    | undefined;
-  const nextRefreshToken = payload?.data?.refreshToken?.refreshToken as
-    | string
-    | undefined;
+  const nextAccessToken = payload?.data?.refreshToken?.accessToken as string | undefined;
+  const nextRefreshToken = payload?.data?.refreshToken?.refreshToken as string | undefined;
 
   if (!nextAccessToken || !nextRefreshToken) {
     clearAuthTokens();
@@ -77,6 +74,7 @@ const requestTokenRefresh = async (): Promise<string | null> => {
 
 const authLink = new SetContextLink((prevContext) => {
   const token = getAccessToken();
+
   return {
     headers: {
       ...prevContext.headers,
@@ -85,28 +83,21 @@ const authLink = new SetContextLink((prevContext) => {
   };
 });
 
-const errorLink = onError(
-  ({ graphQLErrors, operation, forward, networkError }) => {
-    const messages = (graphQLErrors ?? []).map((err) => err.message || "");
-    const codes = (graphQLErrors ?? [])
-      .map((err) =>
-        typeof err.extensions?.code === "string" ? err.extensions.code : "",
-      )
-      .filter(Boolean);
+const errorLink = onError(({ graphQLErrors, operation, forward, networkError }) => {
+  const messages = (graphQLErrors ?? []).map((err) => err.message || "");
+  const codes = (graphQLErrors ?? [])
+    .map((err) => (typeof err.extensions?.code === "string" ? err.extensions.code : ""))
+    .filter(Boolean);
 
-    const networkUnauthorized =
-      typeof (networkError as { message?: string } | undefined)?.message ===
-        "string" &&
-      /401|unauthorized/i.test(
-        (networkError as { message?: string }).message ?? "",
-      );
-    const mustRefresh =
-      shouldAttemptRefresh(messages, codes) || networkUnauthorized;
-    const wasRetried = Boolean(operation.getContext().__wasRetried);
+  const networkUnauthorized =
+    typeof (networkError as { message?: string } | undefined)?.message === "string" &&
+    /401|unauthorized/i.test((networkError as { message?: string }).message ?? "");
+  const mustRefresh = shouldAttemptRefresh(messages, codes) || networkUnauthorized;
+  const wasRetried = Boolean(operation.getContext().__wasRetried);
 
-    if (!mustRefresh || wasRetried) {
-      return;
-    }
+  if (!mustRefresh || wasRetried) {
+    return;
+  }
 
     return new Observable((observer) => {
       const retryWithToken = (token: string | null) => {
@@ -139,21 +130,44 @@ const errorLink = onError(
         return;
       }
 
-      isRefreshing = true;
-      requestTokenRefresh()
-        .then((token) => {
-          isRefreshing = false;
-          resolvePending(token);
-          retryWithToken(token);
-        })
-        .catch((err) => {
-          isRefreshing = false;
-          resolvePending(null);
-          observer.error(err);
-        });
-    });
-  },
-);
+      operation.setContext(({ headers = {} }) => ({
+        headers: {
+          ...headers,
+          authorization: `Bearer ${token}`,
+        },
+        __wasRetried: true,
+      }));
+
+      const subscription = forward(operation).subscribe({
+        next: (value) => observer.next(value),
+        error: (err) => observer.error(err),
+        complete: () => observer.complete(),
+      });
+
+      return () => subscription.unsubscribe();
+    };
+
+    if (isRefreshing) {
+      pendingResolvers.push((token) => {
+        retryWithToken(token);
+      });
+      return;
+    }
+
+    isRefreshing = true;
+    requestTokenRefresh()
+      .then((token) => {
+        isRefreshing = false;
+        resolvePending(token);
+        retryWithToken(token);
+      })
+      .catch((err) => {
+        isRefreshing = false;
+        resolvePending(null);
+        observer.error(err);
+      });
+  });
+});
 
 export const apolloClient = new ApolloClient({
   link: ApolloLink.from([errorLink, authLink, httpLink]),

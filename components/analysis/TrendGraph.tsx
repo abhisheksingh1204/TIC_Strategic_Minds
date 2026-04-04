@@ -1,12 +1,33 @@
 "use client";
 
 import { BarChart3 } from "lucide-react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 type TrendDatum = {
   label: string;
   value: number;
   meta?: string;
 };
+
+const CHART_COLORS = [
+  "#2563eb",
+  "#0f766e",
+  "#ea580c",
+  "#7c3aed",
+  "#dc2626",
+  "#0891b2",
+  "#65a30d",
+  "#c2410c",
+];
 
 const formatUsageValue = (value: number) => {
   if (value === 0) return "0.00";
@@ -37,11 +58,15 @@ export const TrendGraph = ({
     { id: "device", label: "Device" },
     { id: "month", label: "Monthly" },
   ];
-  const maxValue = Math.max(...data.map((item) => item.value), 0);
+
+  const chartData = data.map((item, index) => ({
+    ...item,
+    fill: CHART_COLORS[index % CHART_COLORS.length],
+  }));
 
   return (
     <div className="bg-card rounded-xl border border-border p-6 h-full flex flex-col">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 gap-3">
         <h3 className="text-lg font-semibold text-foreground">{title}</h3>
         <div className="flex gap-2">
           {modes.map((mode) => (
@@ -60,47 +85,60 @@ export const TrendGraph = ({
         </div>
       </div>
 
-      {data.length === 0 ? (
+      {chartData.length === 0 ? (
         <div className="flex-1 flex items-center justify-center border border-dashed border-border rounded-lg bg-secondary/20">
           <div className="text-center text-muted-foreground">
             <BarChart3 className="h-12 w-12 mx-auto mb-3 opacity-40" />
             <p className="text-sm">{emptyMessage}</p>
             {typeof totalKwh === "number" && (
-              <p className="text-xs mt-2">Total usage: {formatUsageValue(totalKwh)} kWh</p>
+              <p className="text-xs mt-2">
+                Total usage: {formatUsageValue(totalKwh)} {unitLabel}
+              </p>
             )}
           </div>
         </div>
       ) : (
-        <div className="flex-1 rounded-lg border border-border bg-secondary/10 p-4">
-          <div className="space-y-4">
-            {data.map((item) => {
-              const width = maxValue > 0 ? (item.value / maxValue) * 100 : 0;
-
-              return (
-                <div key={item.label} className="space-y-1">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-foreground">
-                        {item.label}
-                      </p>
-                      {item.meta && (
-                        <p className="text-xs text-muted-foreground">{item.meta}</p>
-                      )}
-                    </div>
-                    <p className="shrink-0 text-sm font-semibold text-foreground">
-                      {formatUsageValue(item.value)} {unitLabel}
-                    </p>
-                  </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-secondary">
-                    <div
-                      className="h-full rounded-full bg-primary transition-[width] duration-300"
-                      style={{ width: `${Math.max(width, 4)}%` }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+        <div className="flex-1 rounded-lg border border-border bg-secondary/10 p-4 min-h-[320px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={chartData}
+              layout="vertical"
+              margin={{ top: 8, right: 8, left: 8, bottom: 8 }}
+              barCategoryGap={14}
+            >
+              <CartesianGrid stroke="rgba(148, 163, 184, 0.18)" horizontal={false} />
+              <XAxis
+                type="number"
+                tick={{ fill: "#64748b", fontSize: 12 }}
+                tickFormatter={(value: number) => formatUsageValue(value)}
+              />
+              <YAxis
+                type="category"
+                dataKey="label"
+                width={110}
+                tick={{ fill: "#475569", fontSize: 12 }}
+              />
+              <Tooltip
+                cursor={{ fill: "rgba(148, 163, 184, 0.08)" }}
+                contentStyle={{
+                  backgroundColor: "#0f172a",
+                  border: "1px solid rgba(148, 163, 184, 0.2)",
+                  borderRadius: "12px",
+                  color: "#f8fafc",
+                }}
+                formatter={(value) => {
+                  const numericValue = Number(value ?? 0);
+                  return [`${formatUsageValue(numericValue)} ${unitLabel}`, unitLabel];
+                }}
+                labelFormatter={(label) => `${label}`}
+              />
+              <Bar dataKey="value" radius={[0, 8, 8, 0]} maxBarSize={36}>
+                {chartData.map((entry) => (
+                  <Cell key={entry.label} fill={entry.fill} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       )}
     </div>

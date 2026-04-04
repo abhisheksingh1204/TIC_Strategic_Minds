@@ -8,7 +8,7 @@ const PropertySchema = new Schema(
       enum: ["HOUSE", "APARTMENT"],
       required: true,
     },
-    propertyName: { type: String, required: true },
+    propertyName: { type: String, required: true, trim: true },
   },
   { timestamps: true }
 );

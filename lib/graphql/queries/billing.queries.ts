@@ -10,6 +10,7 @@ export const GENERATE_BILL_MUTATION = gql`
       totalKwh
       totalAmount
       createdAt
+      updatedAt
     }
   }
 `;
@@ -24,6 +25,7 @@ export const GET_BILLS_QUERY = gql`
       totalKwh
       totalAmount
       createdAt
+      updatedAt
     }
   }
 `;
@@ -38,6 +40,7 @@ export const GET_BILL_BY_ID_QUERY = gql`
       totalKwh
       totalAmount
       createdAt
+      updatedAt
       lineItems {
         id
         equipmentId
@@ -57,6 +60,9 @@ export const GET_BILLING_LIMIT_QUERY = gql`
       dailyLimit
       monthlyLimit
       alertType
+      lastDailyAlertSent
+      lastMonthlyAlertSent
+      lastAlertError
     }
   }
 `;
@@ -94,6 +100,9 @@ export const SET_BILLING_LIMIT_MUTATION = gql`
       dailyLimit
       monthlyLimit
       alertType
+      lastDailyAlertSent
+      lastMonthlyAlertSent
+      lastAlertError
     }
   }
 `;

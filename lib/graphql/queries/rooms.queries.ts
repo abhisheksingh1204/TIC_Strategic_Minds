@@ -26,6 +26,19 @@ export const CREATE_ROOM_MUTATION = gql`
   }
 `;
 
+export const UPDATE_ROOM_MUTATION = gql`
+  mutation UpdateRoom($roomId: ID!, $input: UpdateRoomInput!) {
+    updateRoom(roomId: $roomId, input: $input) {
+      id
+      propertyId
+      roomName
+      roomType
+      createdAt
+      updatedAt
+    }
+  }
+`;
+
 export const DELETE_ROOM_MUTATION = gql`
   mutation DeleteRoom($roomId: ID!) {
     deleteRoom(roomId: $roomId)

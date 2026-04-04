@@ -103,7 +103,7 @@ export const DropdownMenuContent = ({
   return (
     <div
       className={cx(
-        "absolute z-50 mt-2 min-w-[180px] rounded-2xl border border-white/10 bg-[rgba(9,16,29,0.92)] p-2 shadow-2xl backdrop-blur-[20px]",
+        "absolute z-50 mt-2 min-w-[180px] rounded-2xl border border-white/12 bg-[rgba(9,16,29,0.98)] p-2 shadow-2xl backdrop-blur-[20px]",
         alignClass,
         className
       )}

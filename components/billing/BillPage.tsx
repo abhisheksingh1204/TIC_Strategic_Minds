@@ -41,7 +41,6 @@ type BillSummary = {
   totalKwh: number;
   totalAmount: number;
   createdAt: string;
-  updatedAt: string;
 };
 
 type BillDetailRecord = BillSummary & {
@@ -49,7 +48,7 @@ type BillDetailRecord = BillSummary & {
 };
 
 type BillBreakdownItem = {
-  id: string;
+  id?: string;
   equipmentId: string;
   equipmentName: string;
   kwh: number;
@@ -62,50 +61,15 @@ type BillingLimitRecord = {
   dailyLimit: number | null;
   monthlyLimit: number | null;
   alertType: "COST" | "KWH";
+  lastDailyAlertSent: string | null;
+  lastMonthlyAlertSent: string | null;
+  lastAlertError: string | null;
 };
 
 type BillPreviewRecord = {
   totalKwh: number;
   totalAmount: number;
   breakdown: BillBreakdownItem[];
-};
-
-type MeQueryData = {
-  me: {
-    id?: string;
-    name?: string | null;
-    email?: string | null;
-  } | null;
-};
-
-type MyPropertiesQueryData = {
-  myProperties: PropertyRecord[];
-};
-
-type GetBillsQueryData = {
-  getBills: BillSummary[];
-};
-
-type GetBillByIdQueryData = {
-  getBillById: BillDetailRecord | null;
-};
-
-type GetBillingLimitQueryData = {
-  getBillingLimit: BillingLimitRecord | null;
-};
-
-type GetBillPreviewQueryData = {
-  getBillPreview: BillPreviewRecord;
-};
-
-type GenerateBillMutationData = {
-  generateBill: {
-    id: string;
-  };
-};
-
-type SetBillingLimitMutationData = {
-  setBillingLimit: BillingLimitRecord;
 };
 
 const normalizeBillSummary = (bill: any): BillSummary => ({
@@ -116,7 +80,6 @@ const normalizeBillSummary = (bill: any): BillSummary => ({
   totalKwh: Number(bill?.totalKwh ?? bill?.total_kwh ?? 0),
   totalAmount: Number(bill?.totalAmount ?? bill?.total_amount ?? 0),
   createdAt: String(bill?.createdAt ?? bill?.created_at ?? ""),
-  updatedAt: String(bill?.updatedAt ?? bill?.updated_at ?? ""),
 });
 
 const normalizeBillDetail = (bill: any): BillDetailRecord | null => {
@@ -127,8 +90,8 @@ const normalizeBillDetail = (bill: any): BillDetailRecord | null => {
   return {
     ...normalizeBillSummary(bill),
     lineItems: Array.isArray(bill?.lineItems ?? bill?.line_items)
-      ? (bill.lineItems ?? bill.line_items).map((item: any, index: number) => ({
-          id: String(item?.id ?? item?._id ?? `item-${index}`),
+      ? (bill.lineItems ?? bill.line_items).map((item: any) => ({
+          id: String(item?.id ?? item?._id ?? ""),
           equipmentId: String(item?.equipmentId ?? item?.equipment_id ?? ""),
           equipmentName: String(item?.equipmentName ?? item?.equipment_name ?? "Unknown"),
           kwh: Number(item?.kwh ?? item?.kWh ?? 0),
@@ -149,6 +112,10 @@ const normalizeBillingLimit = (settings: any): BillingLimitRecord | null => {
     dailyLimit: settings?.dailyLimit ?? settings?.daily_limit ?? null,
     monthlyLimit: settings?.monthlyLimit ?? settings?.monthly_limit ?? null,
     alertType: (settings?.alertType ?? settings?.alert_type ?? "KWH") as "COST" | "KWH",
+    lastDailyAlertSent: settings?.lastDailyAlertSent ?? settings?.last_daily_alert_sent ?? null,
+    lastMonthlyAlertSent:
+      settings?.lastMonthlyAlertSent ?? settings?.last_monthly_alert_sent ?? null,
+    lastAlertError: settings?.lastAlertError ?? settings?.last_alert_error ?? null,
   };
 };
 
@@ -178,6 +145,60 @@ const formatDateLabel = (value: string) =>
     month: "short",
     year: "numeric",
   });
+
+const formatDateTimeLabel = (value?: string | null) => {
+  if (!value) {
+    return "Not sent yet";
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "Not sent yet";
+  }
+
+  return parsed.toLocaleString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+};
+
+const getLimitStatus = (
+  limit: number | null | undefined,
+  currentValue: number | null | undefined
+) => {
+  if (limit == null) {
+    return {
+      label: "No limit set",
+      detail: "Save a limit to start checking generated bills.",
+      exceeded: false,
+    };
+  }
+
+  if (currentValue == null) {
+    return {
+      label: "No bill generated yet",
+      detail: "Generate a bill to evaluate this limit.",
+      exceeded: false,
+    };
+  }
+
+  if (currentValue > limit) {
+    return {
+      label: "Limit exceeded",
+      detail: `Current value ${currentValue.toFixed(2)} is above the saved limit ${limit.toFixed(2)}.`,
+      exceeded: true,
+    };
+  }
+
+  return {
+    label: "Within limit",
+    detail: `Current value ${currentValue.toFixed(2)} is within the saved limit ${limit.toFixed(2)}.`,
+    exceeded: false,
+  };
+};
 
 const formatEquipmentId = (value: unknown) => {
   const normalized = String(value ?? "").trim();
@@ -425,7 +446,7 @@ export function BillPage() {
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
   const [latestBillDialogOpen, setLatestBillDialogOpen] = useState(false);
 
-  const { data: meData } = useQuery<MeQueryData>(ME_QUERY, {
+  const { data: meData } = useQuery(ME_QUERY, {
     errorPolicy: "all",
     fetchPolicy: "network-only",
   });
@@ -434,7 +455,7 @@ export function BillPage() {
     data: propertiesData,
     loading: propertiesLoading,
     error: propertiesError,
-  } = useQuery<MyPropertiesQueryData>(MY_PROPERTIES_QUERY, {
+  } = useQuery(MY_PROPERTIES_QUERY, {
     errorPolicy: "all",
     fetchPolicy: "cache-and-network",
   });
@@ -451,7 +472,7 @@ export function BillPage() {
     loading: billsLoading,
     error: billsError,
     refetch: refetchBills,
-  } = useQuery<GetBillsQueryData>(GET_BILLS_QUERY, {
+  } = useQuery(GET_BILLS_QUERY, {
     variables: { propertyId: effectiveSelectedPropertyId },
     skip: !effectiveSelectedPropertyId,
     fetchPolicy: "network-only",
@@ -479,7 +500,7 @@ export function BillPage() {
     data: billDetailData,
     loading: billDetailLoading,
     error: billDetailError,
-  } = useQuery<GetBillByIdQueryData>(GET_BILL_BY_ID_QUERY, {
+  } = useQuery(GET_BILL_BY_ID_QUERY, {
     variables: { billId: effectiveSelectedBillId },
     skip: !effectiveSelectedBillId,
     fetchPolicy: "network-only",
@@ -490,8 +511,8 @@ export function BillPage() {
     [billDetailData]
   );
 
-  const [generateBill, { loading: generatingBill }] = useMutation<GenerateBillMutationData>(GENERATE_BILL_MUTATION);
-  const [getBillPreview, { loading: previewLoading }] = useLazyQuery<GetBillPreviewQueryData>(GET_BILL_PREVIEW_QUERY, {
+  const [generateBill, { loading: generatingBill }] = useMutation(GENERATE_BILL_MUTATION);
+  const [getBillPreview, { loading: previewLoading }] = useLazyQuery(GET_BILL_PREVIEW_QUERY, {
     fetchPolicy: "network-only",
   });
 
@@ -499,13 +520,13 @@ export function BillPage() {
     data: billingLimitData,
     loading: billingLimitLoading,
     refetch: refetchBillingLimit,
-  } = useQuery<GetBillingLimitQueryData>(GET_BILLING_LIMIT_QUERY, {
+  } = useQuery(GET_BILLING_LIMIT_QUERY, {
     variables: { propertyId: effectiveSelectedPropertyId },
     skip: !effectiveSelectedPropertyId,
     fetchPolicy: "network-only",
   });
 
-  const [setBillingLimit, { loading: savingBillingLimit }] = useMutation<SetBillingLimitMutationData>(
+  const [setBillingLimit, { loading: savingBillingLimit }] = useMutation(
     SET_BILLING_LIMIT_MUTATION
   );
 
@@ -550,7 +571,7 @@ export function BillPage() {
   const {
     data: latestBillDetailData,
     loading: latestBillDetailLoading,
-  } = useQuery<GetBillByIdQueryData>(GET_BILL_BY_ID_QUERY, {
+  } = useQuery(GET_BILL_BY_ID_QUERY, {
     variables: { billId: latestBill?.id },
     skip: !latestBill?.id,
     fetchPolicy: "network-only",
@@ -562,6 +583,14 @@ export function BillPage() {
   const latestBillHasUsage = Boolean(
     latestBill && (latestBill.totalAmount > 0 || latestBill.totalKwh > 0)
   );
+  const latestAlertValue =
+    latestBill == null
+      ? null
+      : billingLimit?.alertType === "COST"
+        ? latestBill.totalAmount
+        : latestBill.totalKwh;
+  const dailyLimitStatus = getLimitStatus(billingLimit?.dailyLimit, latestAlertValue);
+  const monthlyLimitStatus = getLimitStatus(billingLimit?.monthlyLimit, latestAlertValue);
   const previewWarning =
     previewResult && billingLimit
       ? billingLimit.alertType === "COST" &&
@@ -614,6 +643,7 @@ export function BillPage() {
       const normalizedRefetchedBills = Array.isArray(refreshedBills.data?.getBills)
         ? refreshedBills.data.getBills.map(normalizeBillSummary)
         : [];
+      await refetchBillingLimit();
 
       const createdBillId = result.data?.generateBill?.id as string | undefined;
       setLatestBillId(createdBillId ?? normalizedRefetchedBills[0]?.id ?? null);
@@ -762,14 +792,15 @@ export function BillPage() {
                   </div>
                   <div className="flex-1">
                     <p className="text-sm text-muted-foreground">Billing Range</p>
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <div className="mt-4 grid gap-3">
                       <label className="text-sm">
                         <span className="mb-1 block text-muted-foreground">From</span>
                         <input
                           type="date"
                           value={fromDate}
                           onChange={(event) => setFromDate(event.target.value)}
-                          className="h-10 w-full rounded-md border border-border bg-background px-3 text-foreground"
+                          className="h-11 w-full min-w-0 rounded-md border border-border bg-background px-3 pr-8 text-xs text-foreground"
+                          style={{ colorScheme: "dark" }}
                         />
                       </label>
                       <label className="text-sm">
@@ -778,7 +809,8 @@ export function BillPage() {
                           type="date"
                           value={toDate}
                           onChange={(event) => setToDate(event.target.value)}
-                          className="h-10 w-full rounded-md border border-border bg-background px-3 text-foreground"
+                          className="h-11 w-full min-w-0 rounded-md border border-border bg-background px-3 pr-8 text-xs text-foreground"
+                          style={{ colorScheme: "dark" }}
                         />
                       </label>
                     </div>
@@ -832,58 +864,6 @@ export function BillPage() {
                   <FileText className="h-4 w-4" />
                   Open Latest Bill
                 </Button>
-              </div>
-            </section>
-
-            <section className="app-content-panel">
-              <div className="mb-5 flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-lg font-semibold text-foreground">Bill Preview</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Preview and generated bills open as a report-style popup with full device
-                    breakdown, similar to the simulation report.
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  disabled={!previewResult}
-                  onClick={() => setPreviewDialogOpen(true)}
-                >
-                  <FileText className="h-4 w-4" />
-                  Open Preview
-                </Button>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-3">
-                <div className="rounded-xl border border-border bg-secondary/10 p-4">
-                  <p className="text-sm text-muted-foreground">Preview Status</p>
-                  <p className="mt-2 text-lg font-semibold text-foreground">
-                    {previewResult ? "Report ready" : "Not generated"}
-                  </p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {previewResult
-                      ? `${previewResult.breakdown.length} devices included in popup report`
-                      : "Choose a property and date range, then click Preview Bill."}
-                  </p>
-                </div>
-                <div className="rounded-xl border border-border bg-secondary/10 p-4">
-                  <p className="text-sm text-muted-foreground">Estimated Cost</p>
-                  <p className="mt-2 text-lg font-semibold text-accent">
-                    {previewResult ? formatCurrency(previewResult.totalAmount) : "NA"}
-                  </p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {previewResult ? `${previewResult.totalKwh.toFixed(2)} kWh total usage` : "Preview totals will appear here."}
-                  </p>
-                </div>
-                <div className="rounded-xl border border-border bg-secondary/10 p-4">
-                  <p className="text-sm text-muted-foreground">Alert Check</p>
-                  <p className="mt-2 text-lg font-semibold text-foreground">
-                    {previewWarning ? "Limit exceeded" : "Within limits"}
-                  </p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {previewWarning ?? "Preview totals are inside the saved threshold."}
-                  </p>
-                </div>
               </div>
             </section>
 
@@ -950,6 +930,41 @@ export function BillPage() {
                   </Button>
                 </div>
               </div>
+
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <div className="rounded-xl border border-border bg-secondary/10 p-4">
+                  <p className="text-sm text-muted-foreground">Daily Alert Status</p>
+                  <p
+                    className={`mt-2 font-semibold ${
+                      dailyLimitStatus.exceeded ? "text-destructive" : "text-foreground"
+                    }`}
+                  >
+                    {dailyLimitStatus.label}
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {dailyLimitStatus.detail}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-border bg-secondary/10 p-4">
+                  <p className="text-sm text-muted-foreground">Monthly Alert Status</p>
+                  <p
+                    className={`mt-2 font-semibold ${
+                      monthlyLimitStatus.exceeded ? "text-destructive" : "text-foreground"
+                    }`}
+                  >
+                    {monthlyLimitStatus.label}
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {monthlyLimitStatus.detail}
+                  </p>
+                </div>
+              </div>
+              {billingLimit?.lastAlertError ? (
+                <div className="mt-4 rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+                  Alert email failed: {billingLimit.lastAlertError}
+                </div>
+              ) : null}
             </section>
 
             <section className="grid gap-6 xl:grid-cols-[1.05fr_1.4fr]">

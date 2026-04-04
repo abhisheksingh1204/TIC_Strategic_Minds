@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { useMutation } from "@apollo/client/react";
 import {
   Check,
-  ChevronDown,
   Eye,
   EyeOff,
   Lock,
@@ -19,29 +18,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { REGISTER_MUTATION } from "@/lib/graphql/queries/auth.queries";
 
-type RegisterMutationData = {
-  register: {
-    accessToken: string;
-    refreshToken: string;
-  };
-};
-
-const plans = [
-  { value: "single-room", label: "Single Room" },
-  { value: "full-house", label: "Full House" },
-  { value: "apartment", label: "Apartment" },
-];
-
 export default function SignUp() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [selectedPlan, setSelectedPlan] = useState("");
   const [agreeTerms, setAgreeTerms] = useState(false);
-  const [showPlanDropdown, setShowPlanDropdown] = useState(false);
-  const [register, { loading }] = useMutation<RegisterMutationData>(REGISTER_MUTATION);
+  const [register, { loading }] = useMutation(REGISTER_MUTATION);
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,11 +84,11 @@ export default function SignUp() {
             <div>
               <label className="mb-3 block text-[16px] font-semibold text-[#f2f6fb]">Full Name</label>
               <div className="relative">
-                <User className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#7889a6]" />
+                <User className="pointer-events-none absolute left-2.5 top-1/2 h-5 w-5 -translate-y-1/2 text-[#7889a6]" />
                 <Input
                   type="text"
                   placeholder="John Doe"
-                  className="h-[62px] rounded-[16px] border-[rgba(32,44,71,1)] bg-[#17202d] pl-14 text-[16px] text-[#f3f7fd] shadow-none placeholder:text-[#7485a2] focus-visible:ring-cyan-400/30"
+                  className="h-[62px] rounded-[16px] border-[rgba(32,44,71,1)] bg-[#17202d] pl-8 text-[16px] text-[#f3f7fd] shadow-none placeholder:text-[#7485a2] focus-visible:ring-cyan-400/30"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                 />
@@ -114,11 +98,11 @@ export default function SignUp() {
             <div className="mt-6">
               <label className="mb-3 block text-[16px] font-semibold text-[#f2f6fb]">Email Address</label>
               <div className="relative">
-                <Mail className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#7889a6]" />
+                <Mail className="pointer-events-none absolute left-2.5 top-1/2 h-5 w-5 -translate-y-1/2 text-[#7889a6]" />
                 <Input
                   type="email"
                   placeholder="name@email.com"
-                  className="h-[62px] rounded-[16px] border-[rgba(32,44,71,1)] bg-[#17202d] pl-14 text-[16px] text-[#f3f7fd] shadow-none placeholder:text-[#7485a2] focus-visible:ring-cyan-400/30"
+                  className="h-[62px] rounded-[16px] border-[rgba(32,44,71,1)] bg-[#17202d] pl-8 text-[16px] text-[#f3f7fd] shadow-none placeholder:text-[#7485a2] focus-visible:ring-cyan-400/30"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
@@ -126,47 +110,13 @@ export default function SignUp() {
             </div>
 
             <div className="mt-6">
-              <label className="mb-3 block text-[16px] font-semibold text-[#f2f6fb]">Select Plan</label>
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setShowPlanDropdown((prev) => !prev)}
-                  className="flex h-[62px] w-full items-center justify-between rounded-[16px] border border-[rgba(32,44,71,1)] bg-[#17202d] px-5 text-[16px] text-[#f3f7fd]"
-                >
-                  <span className={selectedPlan ? "text-white" : "text-slate-400"}>
-                    {selectedPlan ? plans.find((p) => p.value === selectedPlan)?.label : "Choose your plan"}
-                  </span>
-                  <ChevronDown className={`h-5 w-5 text-slate-400 transition-transform ${showPlanDropdown ? "rotate-180" : ""}`} />
-                </button>
-                {showPlanDropdown && (
-                  <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-20 rounded-[16px] border border-[rgba(32,44,71,1)] bg-[#0f1726] p-2 shadow-[0_20px_40px_rgba(0,0,0,0.35)]">
-                    {plans.map((plan) => (
-                      <button
-                        key={plan.value}
-                        type="button"
-                        onClick={() => {
-                          setSelectedPlan(plan.value);
-                          setShowPlanDropdown(false);
-                        }}
-                        className="flex w-full items-center justify-between rounded-[12px] px-4 py-3 text-left text-[15px] text-[#f3f7fd] hover:bg-white/5"
-                      >
-                        <span>{plan.label}</span>
-                        {selectedPlan === plan.value ? <Check className="h-4 w-4 text-lime-400" /> : null}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="mt-6">
               <label className="mb-3 block text-[16px] font-semibold text-[#f2f6fb]">Create Password</label>
               <div className="relative">
-                <Lock className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#7889a6]" />
+                <Lock className="pointer-events-none absolute left-2.5 top-1/2 h-5 w-5 -translate-y-1/2 text-[#7889a6]" />
                 <Input
                   type={showPassword ? "text" : "password"}
-                  placeholder="••••••••••••"
-                  className="h-[62px] rounded-[16px] border-[rgba(32,44,71,1)] bg-[#17202d] pl-14 pr-14 text-[16px] text-[#f3f7fd] shadow-none placeholder:text-[#7485a2] focus-visible:ring-cyan-400/30"
+                  placeholder="Enter your password"
+                  className="h-[62px] rounded-[16px] border-[rgba(32,44,71,1)] bg-[#17202d] pl-8 pr-14 text-[16px] text-[#f3f7fd] shadow-none placeholder:text-[#7485a2] focus-visible:ring-cyan-400/30"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />

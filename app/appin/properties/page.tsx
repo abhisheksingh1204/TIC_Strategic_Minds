@@ -251,7 +251,7 @@ function PropertiesContent() {
                 key={property.id}
                 role="button"
                 tabIndex={0}
-                className="app-content-panel app-card-hover flex w-full items-center justify-between text-left"
+                className="app-content-panel app-card-hover relative z-0 flex w-full items-center justify-between text-left focus-within:z-20"
                 onClick={() => {
                   setSelectedProperty(property);
                   setRoomDialogOpen(true);

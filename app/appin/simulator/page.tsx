@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useMutation, useQuery } from "@apollo/client";
+import { useMutation, useQuery } from "@apollo/client/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -1916,10 +1916,9 @@ export default function Simulator() {
               </div>
 
               <div className="overflow-x-auto rounded-lg border border-border">
-                <div className="grid min-w-[720px] grid-cols-[minmax(160px,1.8fr)_100px_120px_100px_140px] gap-3 border-b border-border bg-secondary/30 px-4 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                <div className="grid min-w-[620px] grid-cols-[minmax(180px,1.9fr)_110px_110px_140px] gap-3 border-b border-border bg-secondary/30 px-4 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   <span>Device</span>
                   <span>Power</span>
-                  <span className="whitespace-nowrap">Hours/Day</span>
                   <span>Status</span>
                   <span className="whitespace-nowrap">Monthly kWh</span>
                 </div>
@@ -1932,14 +1931,13 @@ export default function Simulator() {
                   placedDevices.map((device) => (
                     <div
                       key={device.instanceId}
-                      className="grid min-w-[720px] grid-cols-[minmax(160px,1.8fr)_100px_120px_100px_140px] gap-3 border-b border-border/70 px-4 py-3 text-sm last:border-b-0"
+                      className="grid min-w-[620px] grid-cols-[minmax(180px,1.9fr)_110px_110px_140px] gap-3 border-b border-border/70 px-4 py-3 text-sm last:border-b-0"
                     >
                       <div className="min-w-0">
                         <p className="truncate font-medium text-foreground">{device.name}</p>
                         <p className="text-xs text-muted-foreground">{device.deviceNumber}</p>
                       </div>
                       <span className="text-foreground">{device.wattage}W</span>
-                      <span className="text-foreground">{device.hoursPerDay}h</span>
                       <span className={device.isOn ? "text-accent" : "text-muted-foreground"}>
                         {device.isOn ? "ON" : "OFF"}
                       </span>

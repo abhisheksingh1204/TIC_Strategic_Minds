@@ -11,7 +11,6 @@ import {
   Lightbulb,
   Move,
   TrendingDown,
-  Users,
   Zap,
 } from "lucide-react";
 
@@ -83,7 +82,7 @@ const steps = [
 const pricing = [
   {
     name: "Free",
-    price: "â‚¹0",
+    price: "₹0",
     suffix: "forever",
     description: "Perfect for getting started",
     cta: "Get Started",
@@ -98,7 +97,7 @@ const pricing = [
   },
   {
     name: "Pro",
-    price: "â‚¹199",
+    price: "₹199",
     suffix: "/month",
     description: "Best for home owners",
     cta: "Start Pro Trial",
@@ -301,7 +300,7 @@ export default function Home() {
           </div>
         </section>
 
-        <footer className="landing-footer">Â© 2024 Power Fusion</footer>
+        <footer className="landing-footer">© 2024 Power Fusion</footer>
       </div>
     </main>
   );

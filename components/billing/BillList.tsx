@@ -7,6 +7,7 @@ type BillSummary = {
   totalKwh: number;
   totalAmount: number;
   createdAt: string;
+  updatedAt: string;
 };
 
 const formatMonthRange = (periodStart: string, periodEnd: string) => {
@@ -103,8 +104,8 @@ export function BillList({
                       {formatMonthRange(bill.periodStart, bill.periodEnd)}
                     </p>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      Created{" "}
-                      {new Date(bill.createdAt).toLocaleDateString("en-IN", {
+                      Updated{" "}
+                      {new Date(bill.updatedAt || bill.createdAt).toLocaleDateString("en-IN", {
                         day: "numeric",
                         month: "short",
                         year: "numeric",

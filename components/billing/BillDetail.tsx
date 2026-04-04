@@ -15,6 +15,7 @@ type BillDetailRecord = {
   totalKwh: number;
   totalAmount: number;
   createdAt: string;
+  updatedAt: string;
   lineItems: BillLineItem[];
 };
 
@@ -182,7 +183,7 @@ export function BillDetail({
           </div>
 
           <p className="text-xs text-muted-foreground">
-            Generated on {formatDate(bill.createdAt)}.
+            Last generated on {formatDate(bill.updatedAt || bill.createdAt)}.
           </p>
         </div>
       )}

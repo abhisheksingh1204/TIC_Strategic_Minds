@@ -30,3 +30,17 @@ export const CREATE_TARIFF_MUTATION = gql`
     )
   }
 `;
+
+export const UPDATE_TARIFF_MUTATION = gql`
+  mutation UpdateTariff(
+    $tariffId: ID!
+    $tariffType: String!
+    $slabs: [TariffSlabInput!]!
+  ) {
+    updateTariff(
+      tariffId: $tariffId
+      tariffType: $tariffType
+      slabs: $slabs
+    )
+  }
+`;

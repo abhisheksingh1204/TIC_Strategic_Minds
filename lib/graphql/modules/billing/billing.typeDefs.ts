@@ -31,6 +31,9 @@ export const billingTypeDefs = gql`
     dailyLimit: Float
     monthlyLimit: Float
     alertType: String!
+    lastDailyAlertSent: String
+    lastMonthlyAlertSent: String
+    lastAlertError: String
   }
 
   type EquipmentBreakdown {

@@ -41,21 +41,15 @@ type BillSummary = {
   totalKwh: number;
   totalAmount: number;
   createdAt: string;
-};
-
-type BillLineItem = {
-  id: string;
-  equipmentId: string;
-  equipmentName: string;
-  kwh: number;
-  amount: number;
+  updatedAt: string;
 };
 
 type BillDetailRecord = BillSummary & {
-  lineItems: BillLineItem[];
+  lineItems: BillBreakdownItem[];
 };
 
 type BillBreakdownItem = {
+  id: string;
   equipmentId: string;
   equipmentName: string;
   kwh: number;
@@ -76,78 +70,6 @@ type BillPreviewRecord = {
   breakdown: BillBreakdownItem[];
 };
 
-type MeQueryResult = {
-  me: {
-    id: string;
-    email: string;
-    name: string;
-  } | null;
-};
-
-type MyPropertiesQueryResult = {
-  myProperties: {
-    id: string;
-    propertyName: string;
-    propertyType: string;
-    createdAt: string;
-    updatedAt: string;
-  }[] | null;
-};
-
-type GetBillsQueryResult = {
-  getBills: {
-    id: string;
-    propertyId: string;
-    periodStart: string;
-    periodEnd: string;
-    totalKwh: number;
-    totalAmount: number;
-    createdAt: string;
-  }[] | null;
-};
-
-type GetBillByIdQueryResult = {
-  getBillById: {
-    id: string;
-    propertyId: string;
-    periodStart: string;
-    periodEnd: string;
-    totalKwh: number;
-    totalAmount: number;
-    createdAt: string;
-    lineItems: {
-      id?: string;
-      equipmentId: string;
-      equipmentName: string;
-      kwh: number;
-      amount: number;
-    }[];
-  } | null;
-};
-
-type GetBillPreviewQueryResult = {
-  getBillPreview: {
-    totalKwh: number;
-    totalAmount: number;
-    breakdown: {
-      equipmentId: string;
-      equipmentName: string;
-      kwh: number;
-      amount: number;
-    }[];
-  } | null;
-};
-
-type BillingLimitQueryResult = {
-  getBillingLimit: {
-    id: string;
-    propertyId: string;
-    dailyLimit: number | null;
-    monthlyLimit: number | null;
-    alertType: "COST" | "KWH";
-  } | null;
-};
-
 const normalizeBillSummary = (bill: any): BillSummary => ({
   id: String(bill?.id ?? bill?._id ?? ""),
   propertyId: String(bill?.propertyId ?? bill?.property_id ?? ""),
@@ -156,6 +78,7 @@ const normalizeBillSummary = (bill: any): BillSummary => ({
   totalKwh: Number(bill?.totalKwh ?? bill?.total_kwh ?? 0),
   totalAmount: Number(bill?.totalAmount ?? bill?.total_amount ?? 0),
   createdAt: String(bill?.createdAt ?? bill?.created_at ?? ""),
+  updatedAt: String(bill?.updatedAt ?? bill?.updated_at ?? ""),
 });
 
 const normalizeBillDetail = (bill: any): BillDetailRecord | null => {
@@ -166,8 +89,8 @@ const normalizeBillDetail = (bill: any): BillDetailRecord | null => {
   return {
     ...normalizeBillSummary(bill),
     lineItems: Array.isArray(bill?.lineItems ?? bill?.line_items)
-      ? (bill.lineItems ?? bill.line_items).map((item: any) => ({
-          id: String(item?.id ?? item?._id ?? ""),
+      ? (bill.lineItems ?? bill.line_items).map((item: any, index: number) => ({
+          id: String(item?.id ?? item?._id ?? `item-${index}`),
           equipmentId: String(item?.equipmentId ?? item?.equipment_id ?? ""),
           equipmentName: String(item?.equipmentName ?? item?.equipment_name ?? "Unknown"),
           kwh: Number(item?.kwh ?? item?.kWh ?? 0),
@@ -453,6 +376,7 @@ const defaultTo = toDateInputValue(today);
 export function BillPage() {
   const [selectedPropertyId, setSelectedPropertyId] = useState("");
   const [selectedBillId, setSelectedBillId] = useState<string | null>(null);
+  const [latestBillId, setLatestBillId] = useState<string | null>(null);
   const [fromDate, setFromDate] = useState(defaultFrom);
   const [toDate, setToDate] = useState(defaultTo);
   const [viewMode, setViewMode] = useState<"kwh" | "amount">("amount");
@@ -463,7 +387,7 @@ export function BillPage() {
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
   const [latestBillDialogOpen, setLatestBillDialogOpen] = useState(false);
 
-  const { data: meData } = useQuery<MeQueryResult>(ME_QUERY, {
+  const { data: meData } = useQuery(ME_QUERY, {
     errorPolicy: "all",
     fetchPolicy: "network-only",
   });
@@ -472,7 +396,7 @@ export function BillPage() {
     data: propertiesData,
     loading: propertiesLoading,
     error: propertiesError,
-  } = useQuery<MyPropertiesQueryResult>(MY_PROPERTIES_QUERY, {
+  } = useQuery(MY_PROPERTIES_QUERY, {
     errorPolicy: "all",
     fetchPolicy: "cache-and-network",
   });
@@ -489,7 +413,7 @@ export function BillPage() {
     loading: billsLoading,
     error: billsError,
     refetch: refetchBills,
-  } = useQuery<GetBillsQueryResult>(GET_BILLS_QUERY, {
+  } = useQuery(GET_BILLS_QUERY, {
     variables: { propertyId: effectiveSelectedPropertyId },
     skip: !effectiveSelectedPropertyId,
     fetchPolicy: "network-only",
@@ -517,7 +441,7 @@ export function BillPage() {
     data: billDetailData,
     loading: billDetailLoading,
     error: billDetailError,
-  } = useQuery<GetBillByIdQueryResult>(GET_BILL_BY_ID_QUERY, {
+  } = useQuery(GET_BILL_BY_ID_QUERY, {
     variables: { billId: effectiveSelectedBillId },
     skip: !effectiveSelectedBillId,
     fetchPolicy: "network-only",
@@ -528,43 +452,22 @@ export function BillPage() {
     [billDetailData]
   );
 
-  const [generateBill, { loading: generatingBill }] = useMutation<{
-    generateBill: {
-      id: string;
-      propertyId: string;
-      periodStart: string;
-      periodEnd: string;
-      totalKwh: number;
-      totalAmount: number;
-      createdAt: string;
-    };
-  }>(GENERATE_BILL_MUTATION);
-  const [getBillPreview, { loading: previewLoading }] = useLazyQuery<GetBillPreviewQueryResult>(
-    GET_BILL_PREVIEW_QUERY,
-    {
-      fetchPolicy: "network-only",
-    }
-  );
+  const [generateBill, { loading: generatingBill }] = useMutation(GENERATE_BILL_MUTATION);
+  const [getBillPreview, { loading: previewLoading }] = useLazyQuery(GET_BILL_PREVIEW_QUERY, {
+    fetchPolicy: "network-only",
+  });
 
   const {
     data: billingLimitData,
     loading: billingLimitLoading,
     refetch: refetchBillingLimit,
-  } = useQuery<BillingLimitQueryResult>(GET_BILLING_LIMIT_QUERY, {
+  } = useQuery(GET_BILLING_LIMIT_QUERY, {
     variables: { propertyId: effectiveSelectedPropertyId },
     skip: !effectiveSelectedPropertyId,
     fetchPolicy: "network-only",
   });
 
-  const [setBillingLimit, { loading: savingBillingLimit }] = useMutation<{
-    setBillingLimit: {
-      id: string;
-      propertyId: string;
-      dailyLimit: number | null;
-      monthlyLimit: number | null;
-      alertType: "COST" | "KWH";
-    };
-  }>(
+  const [setBillingLimit, { loading: savingBillingLimit }] = useMutation(
     SET_BILLING_LIMIT_MUTATION
   );
 
@@ -587,17 +490,29 @@ export function BillPage() {
     setPreviewResult(null);
   }, [effectiveSelectedPropertyId, fromDate, toDate]);
 
+  useEffect(() => {
+    if (!latestBillId || bills.some((bill) => bill.id === latestBillId)) {
+      return;
+    }
+
+    setLatestBillId(null);
+  }, [bills, latestBillId]);
+
   const selectedProperty = properties.find(
     (property) => property.id === effectiveSelectedPropertyId
   );
+  const effectiveLatestBillId =
+    latestBillId && bills.some((bill) => bill.id === latestBillId)
+      ? latestBillId
+      : (bills[0]?.id ?? null);
   const latestBill = useMemo(
-    () => bills.find((bill) => bill.totalAmount > 0 || bill.totalKwh > 0) ?? bills[0] ?? null,
-    [bills]
+    () => bills.find((bill) => bill.id === effectiveLatestBillId) ?? null,
+    [bills, effectiveLatestBillId]
   );
   const {
     data: latestBillDetailData,
     loading: latestBillDetailLoading,
-  } = useQuery<GetBillByIdQueryResult>(GET_BILL_BY_ID_QUERY, {
+  } = useQuery(GET_BILL_BY_ID_QUERY, {
     variables: { billId: latestBill?.id },
     skip: !latestBill?.id,
     fetchPolicy: "network-only",
@@ -629,6 +544,7 @@ export function BillPage() {
   const handlePropertyChange = (propertyId: string) => {
     setSelectedPropertyId(propertyId);
     setSelectedBillId(null);
+    setLatestBillId(null);
   };
 
   const handleGenerateBill = async () => {
@@ -662,6 +578,7 @@ export function BillPage() {
         : [];
 
       const createdBillId = result.data?.generateBill?.id as string | undefined;
+      setLatestBillId(createdBillId ?? normalizedRefetchedBills[0]?.id ?? null);
       setSelectedBillId(createdBillId ?? normalizedRefetchedBills[0]?.id ?? null);
       setLatestBillDialogOpen(true);
 

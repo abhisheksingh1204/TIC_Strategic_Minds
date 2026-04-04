@@ -16,12 +16,18 @@ export const roomTypeDefs = gql`
     roomType: String
   }
 
+  input UpdateRoomInput {
+    roomName: String!
+    roomType: String
+  }
+
   extend type Query {
     roomsByProperty(propertyId: ID!): [Room!]!
   }
 
   extend type Mutation {
     createRoom(input: CreateRoomInput!): Room!
+    updateRoom(roomId: ID!, input: UpdateRoomInput!): Room!
     deleteRoom(roomId: ID!): Boolean!
   }
 `;

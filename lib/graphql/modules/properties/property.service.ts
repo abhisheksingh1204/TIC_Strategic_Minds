@@ -9,6 +9,10 @@ interface CreatePropertyInput {
   propertyType: "HOUSE" | "APARTMENT";
 }
 
+interface UpdatePropertyInput {
+  propertyName: string;
+}
+
 export const createProperty = async (
   userId: string | null,
   input: CreatePropertyInput
@@ -17,9 +21,15 @@ export const createProperty = async (
     throw new GraphQLError("Unauthorized");
   }
 
+  const propertyName = input.propertyName.trim();
+
+  if (!propertyName) {
+    throw new GraphQLError("Property name is required");
+  }
+
   const property = await Property.create({
     userId: new Types.ObjectId(userId),
-    propertyName: input.propertyName,
+    propertyName,
     propertyType: input.propertyType,
   });
 
@@ -50,6 +60,36 @@ export const getPropertyById = async (
   if (!property) {
     throw new GraphQLError("Property not found");
   }
+
+  return property;
+};
+
+export const updateProperty = async (
+  userId: string | null,
+  propertyId: string,
+  input: UpdatePropertyInput
+) => {
+  if (!userId) {
+    throw new GraphQLError("Unauthorized");
+  }
+
+  const propertyName = input.propertyName.trim();
+
+  if (!propertyName) {
+    throw new GraphQLError("Property name is required");
+  }
+
+  const property = await Property.findOne({
+    _id: propertyId,
+    userId,
+  });
+
+  if (!property) {
+    throw new GraphQLError("Property not found");
+  }
+
+  property.propertyName = propertyName;
+  await property.save();
 
   return property;
 };

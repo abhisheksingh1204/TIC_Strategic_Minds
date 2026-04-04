@@ -40,6 +40,19 @@ const formatDate = (value: string) =>
     year: "numeric",
   });
 
+const formatEquipmentId = (value: unknown) => {
+  if (value == null) {
+    return "UNKNOWN";
+  }
+
+  const normalized = String(value).trim();
+  if (!normalized) {
+    return "UNKNOWN";
+  }
+
+  return normalized.slice(-6).toUpperCase();
+};
+
 export function BillDetail({
   bill,
   loading,
@@ -77,7 +90,7 @@ export function BillDetail({
                 : "text-muted-foreground"
             }`}
           >
-            ₹
+            INR
           </button>
         </div>
       </div>
@@ -148,7 +161,7 @@ export function BillDetail({
                         <div>
                           <p className="font-medium text-foreground">{item.equipmentName}</p>
                           <p className="text-xs text-muted-foreground">
-                            {item.equipmentId.slice(-6).toUpperCase()}
+                            {formatEquipmentId(item.equipmentId)}
                           </p>
                         </div>
                       </td>

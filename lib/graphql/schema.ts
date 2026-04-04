@@ -17,6 +17,9 @@ import { tariffResolvers } from "./modules/tariff/tariff.resolvers";
 import { costTypeDefs } from "./modules/cost/cost.typeDefs";
 import { costResolvers } from "./modules/cost/cost.resolvers";
 
+import { billingTypeDefs } from "./modules/billing/billing.typeDefs";
+import { billingResolvers } from "./modules/billing/billing.resolvers";
+
 import { propertyTypeDefs } from "./modules/properties/property.typeDefs";
 import { propertyResolvers } from "./modules/properties/property.resolvers";
 
@@ -41,6 +44,7 @@ export const schema = makeExecutableSchema({
     aggregationTypeDefs,
     tariffTypeDefs,
     costTypeDefs,
+    billingTypeDefs,
   ],
   resolvers: [
     authResolvers,
@@ -52,5 +56,6 @@ export const schema = makeExecutableSchema({
     aggregationResolvers,
     tariffResolvers,
     costResolvers,
+    billingResolvers,
   ],
 });

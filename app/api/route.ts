@@ -5,20 +5,11 @@ import { NextRequest } from "next/server";
 import { schema } from "@/lib/graphql/schema";
 import { createContext } from "@/lib/graphql/context";
 
-/**
- * Apollo Server instance
- */
+
 const server = new ApolloServer({
   schema,
   introspection: true,
 });
-
-/**
- * GraphQL handler for Next.js App Router
- */
-// const handler = startServerAndCreateNextHandler(server, {
-//   context: async () => ({}),
-// });
 
 const handler = startServerAndCreateNextHandler<NextRequest>(server, {
   context: async (req: NextRequest) => {

@@ -1,5 +1,3 @@
-import nodemailer from "nodemailer";
-
 type BillingAlertEmailInput = {
   to: string;
   propertyName?: string | null;
@@ -16,6 +14,15 @@ type SupportRequestEmailInput = {
   message: string;
 };
 
+type TransporterLike = {
+  sendMail: (args: Record<string, unknown>) => Promise<{
+    messageId?: string;
+    accepted?: string[];
+    rejected?: string[];
+    response?: string;
+  }>;
+};
+
 const smtpUser = process.env.SMTP_EMAIL;
 const smtpPass = process.env.SMTP_PASS;
 const smtpHost = process.env.SMTP_HOST;
@@ -30,21 +37,38 @@ const smtpFromName = process.env.SMTP_FROM_NAME ?? "PowerFusion";
 const supportToEmail = process.env.SUPPORT_EMAIL ?? smtpUser;
 
 const assertSmtpConfig = () => {
-  if (!smtpUser) {
-    throw new Error("SMTP_EMAIL is not configured");
-  }
-
-  if (!smtpPass) {
-    throw new Error("SMTP_PASS is not configured");
-  }
-
-  if (!smtpFromEmail) {
-    throw new Error("SMTP_FROM_EMAIL is not configured");
+  if (!smtpUser || !smtpPass || !smtpFromEmail) {
+    throw new Error("SMTP email configuration is incomplete");
   }
 };
 
-const createTransporter = () => {
+const loadNodemailer = async (): Promise<
+  | {
+      createTransport: (config: Record<string, unknown>) => TransporterLike;
+    }
+  | null
+> => {
+  try {
+    const dynamicImport = new Function("name", "return import(name);") as (
+      name: string
+    ) => Promise<{
+      createTransport: (config: Record<string, unknown>) => TransporterLike;
+    }>;
+
+    return await dynamicImport("nodemailer");
+  } catch (error) {
+    console.warn("Nodemailer unavailable:", error);
+    return null;
+  }
+};
+
+const createTransporter = async (): Promise<TransporterLike | null> => {
   assertSmtpConfig();
+
+  const nodemailer = await loadNodemailer();
+  if (!nodemailer) {
+    return null;
+  }
 
   if (smtpHost) {
     return nodemailer.createTransport({
@@ -67,12 +91,26 @@ const createTransporter = () => {
   });
 };
 
-const transporter = createTransporter();
-
 const formatAlertValue = (alertType: "COST" | "KWH", value: number) =>
   alertType === "COST" ? `Rs.${value.toFixed(2)}` : `${value.toFixed(2)} kWh`;
 
 const getSenderAddress = () => `${smtpFromName} <${smtpFromEmail}>`;
+
+const sendWithTransporter = async (mailOptions: Record<string, unknown>) => {
+  const transporter = await createTransporter();
+
+  if (!transporter) {
+    console.warn("Skipping email because nodemailer is unavailable or SMTP is not configured.");
+    return {
+      messageId: "skipped",
+      accepted: [],
+      rejected: [],
+      response: "Email delivery skipped",
+    };
+  }
+
+  return transporter.sendMail(mailOptions);
+};
 
 export async function sendBillingLimitExceededEmail({
   to,
@@ -93,7 +131,7 @@ export async function sendBillingLimitExceededEmail({
   const metricLabel = alertType === "COST" ? "cost" : "usage";
   const scopeLabel = limitScope === "daily" ? "Daily" : "Monthly";
 
-  const info = await transporter.sendMail({
+  const info = await sendWithTransporter({
     from: getSenderAddress(),
     to: recipient,
     subject: `${scopeLabel} ${metricLabel} limit exceeded`,
@@ -147,7 +185,7 @@ export async function sendSupportRequestEmail({
     throw new Error("SUPPORT_EMAIL is not configured");
   }
 
-  const info = await transporter.sendMail({
+  const info = await sendWithTransporter({
     from: getSenderAddress(),
     to: supportToEmail,
     replyTo: `${fromName} <${fromEmail}>`,

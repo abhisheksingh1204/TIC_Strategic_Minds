@@ -168,6 +168,51 @@ type SimulatorSnapshot = {
   mcbOn: boolean;
 };
 
+type RoomsByPropertyQueryData = {
+  roomsByProperty: RoomRecord[];
+};
+
+type MyPropertiesQueryData = {
+  myProperties: PropertyRecord[];
+};
+
+type EquipmentsByRoomQueryData = {
+  equipmentsByRoom: EquipmentRecord[];
+};
+
+type ActiveTariffQueryData = {
+  activeTariff: {
+    _id: string;
+    propertyId: string;
+    tariffType: TariffType;
+    slabs: Array<{
+      uptoKwh?: number | null;
+      pricePerUnit: number;
+    }>;
+    effectiveFrom: string;
+  } | null;
+};
+
+type CreateEquipmentMutationData = {
+  createEquipment: EquipmentRecord;
+};
+
+type UpdateEquipmentMutationData = {
+  updateEquipment: EquipmentRecord;
+};
+
+type DeleteEquipmentMutationData = {
+  deleteEquipment: boolean;
+};
+
+type CreateTariffMutationData = {
+  createTariff: boolean;
+};
+
+type UpdateTariffMutationData = {
+  updateTariff: boolean;
+};
+
 const isMongoId = (value: string) => /^[a-f0-9]{24}$/i.test(value);
 
 const calculateBillBreakdown = (
@@ -279,12 +324,12 @@ export default function Simulator() {
     return () => window.clearTimeout(timeoutId);
   }, []);
 
-  const { data: roomData } = useQuery(ROOMS_BY_PROPERTY_QUERY, {
+  const { data: roomData } = useQuery<RoomsByPropertyQueryData>(ROOMS_BY_PROPERTY_QUERY, {
     variables: { propertyId },
     skip: !propertyId,
     fetchPolicy: "network-only",
   });
-  const { data: propertiesData } = useQuery(MY_PROPERTIES_QUERY, {
+  const { data: propertiesData } = useQuery<MyPropertiesQueryData>(MY_PROPERTIES_QUERY, {
     skip: !propertyId,
     fetchPolicy: "network-only",
   });
@@ -305,17 +350,17 @@ export default function Simulator() {
     loading: equipmentLoading,
     error: equipmentError,
     refetch: refetchEquipments,
-  } = useQuery(EQUIPMENTS_BY_ROOM_QUERY, {
+  } = useQuery<EquipmentsByRoomQueryData>(EQUIPMENTS_BY_ROOM_QUERY, {
     variables: { roomId },
     skip: !roomId,
     fetchPolicy: "network-only",
   });
 
-  const [createEquipment] = useMutation(CREATE_EQUIPMENT_MUTATION);
-  const [updateEquipment] = useMutation(UPDATE_EQUIPMENT_MUTATION);
-  const [deleteEquipment] = useMutation(DELETE_EQUIPMENT_MUTATION);
-  const [createTariff] = useMutation(CREATE_TARIFF_MUTATION);
-  const [updateTariff] = useMutation(UPDATE_TARIFF_MUTATION);
+  const [createEquipment] = useMutation<CreateEquipmentMutationData>(CREATE_EQUIPMENT_MUTATION);
+  const [updateEquipment] = useMutation<UpdateEquipmentMutationData>(UPDATE_EQUIPMENT_MUTATION);
+  const [deleteEquipment] = useMutation<DeleteEquipmentMutationData>(DELETE_EQUIPMENT_MUTATION);
+  const [createTariff] = useMutation<CreateTariffMutationData>(CREATE_TARIFF_MUTATION);
+  const [updateTariff] = useMutation<UpdateTariffMutationData>(UPDATE_TARIFF_MUTATION);
   const todayDate = useMemo(() => {
     const now = new Date();
     const year = now.getFullYear();
@@ -324,11 +369,12 @@ export default function Simulator() {
     return `${year}-${month}-${day}`;
   }, []);
 
-  const { data: activeTariffData, loading: activeTariffLoading } = useQuery(ACTIVE_TARIFF_QUERY, {
-    variables: { propertyId, date: todayDate },
-    skip: !propertyId,
-    fetchPolicy: "network-only",
-  });
+  const { data: activeTariffData, loading: activeTariffLoading } =
+    useQuery<ActiveTariffQueryData>(ACTIVE_TARIFF_QUERY, {
+      variables: { propertyId, date: todayDate },
+      skip: !propertyId,
+      fetchPolicy: "network-only",
+    });
 
   const didHydrateFromServer = Boolean(roomId && equipmentData);
   const hasSavedTariff = Boolean(activeTariffData?.activeTariff?._id);

@@ -36,11 +36,19 @@ const faqs = [
   },
 ];
 
+type MeQueryData = {
+  me: {
+    id?: string;
+    email?: string | null;
+    name?: string | null;
+  } | null;
+};
+
 export default function Help() {
   const [supportDialogOpen, setSupportDialogOpen] = useState(false);
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
-  const { data: meData } = useQuery(ME_QUERY, {
+  const { data: meData } = useQuery<MeQueryData>(ME_QUERY, {
     errorPolicy: "all",
     fetchPolicy: "network-only",
   });

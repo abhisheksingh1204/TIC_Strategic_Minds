@@ -1,17 +1,70 @@
 import UsageSession from "@/models/UsageSession.model";
 import EnergyAggregate from "@/models/EnergyAggregate.model";
-import Equipment from "@/models/Equipment.model";
-import Room from "@/models/Room.model";
 import { getDayRange } from "@/lib/date";
+import { BillingSettingsService } from "../billing/billingSettings.service";
 
-//helper for sum
 const sum = (arr: number[]) => arr.reduce((a, b) => a + b, 0);
 
-export class AggregationService {
+type SessionLike = {
+  equipmentId?: unknown;
+  equipment_id?: unknown;
+  propertyId?: unknown;
+  property_id?: unknown;
+  roomId?: unknown;
+  room_id?: unknown;
+  startedAt?: Date | string | null;
+  startTime?: Date | string | null;
+  endedAt?: Date | string | null;
+  endTime?: Date | string | null;
+  effectiveWatt?: number | null;
+  powerRatingWatts?: number | null;
+  energyKwh?: number | null;
+};
 
-  
+const toDateOrNull = (value: unknown) => {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = value instanceof Date ? value : new Date(String(value));
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const toPositiveNumber = (value: unknown) => {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : 0;
+};
+
+export class AggregationService {
   static async recomputeDaily(date: string) {
-    const { start: dayStart, end: dayEnd } = getDayRange(date, date);
+    const parsedDate = new Date(date);
+
+    if (Number.isNaN(parsedDate.getTime())) {
+      throw new Error("Invalid aggregation date");
+    }
+
+    const dayStart = new Date(
+      Date.UTC(
+        parsedDate.getUTCFullYear(),
+        parsedDate.getUTCMonth(),
+        parsedDate.getUTCDate(),
+        0,
+        0,
+        0,
+        0
+      )
+    );
+    const dayEnd = new Date(
+      Date.UTC(
+        parsedDate.getUTCFullYear(),
+        parsedDate.getUTCMonth(),
+        parsedDate.getUTCDate(),
+        23,
+        59,
+        59,
+        999
+      )
+    );
 
     await EnergyAggregate.deleteMany({
       type: "DAILY",
@@ -20,97 +73,147 @@ export class AggregationService {
 
     const sessions = await UsageSession.find({
       startedAt: { $gte: dayStart, $lte: dayEnd },
-      energyKwh: { $ne: null },
-    });
+    }).lean<SessionLike[]>();
 
-    //equipment
-    const equipmentMap = new Map<string, number>();
-    sessions.forEach(s => {
-      equipmentMap.set(
-        s.equipmentId.toString(),
-        (equipmentMap.get(s.equipmentId.toString()) || 0) + s.energyKwh!
-      );
-    });
+    console.log("Aggregation Date:", date);
+    console.log("Sessions Found:", sessions.length);
 
-    const equipmentAggregates = Array.from(equipmentMap.entries()).map(
-      ([equipmentId, totalKwh]) => ({
-        scope: "EQUIPMENT",
-        refId: equipmentId,
-        type: "DAILY",
-        date: dayStart,
-        year: dayStart.getFullYear(),
-        month: dayStart.getMonth() + 1,
-        totalKwh,
-      })
-    );
-
-    if (equipmentAggregates.length > 0) {
-      await EnergyAggregate.insertMany(equipmentAggregates);
+    if (sessions.length === 0) {
+      return false;
     }
 
-    
-    const equipments = await Equipment.find({
-      _id: { $in: Array.from(equipmentMap.keys()) },
-    });
+    const propertyEquipmentMap = new Map<string, Map<string, number>>();
+    const roomEquipmentMap = new Map<string, Map<string, number>>();
 
-    //room
-    const roomMap = new Map<string, number>();
-    equipments.forEach(eq => {
-      const eqEnergy = equipmentMap.get(eq._id.toString()) || 0;
-      roomMap.set(
-        eq.roomId.toString(),
-        (roomMap.get(eq.roomId.toString()) || 0) + eqEnergy
+    for (const session of sessions) {
+      const equipmentId = String(session.equipmentId ?? session.equipment_id ?? "");
+      const propertyId = String(session.propertyId ?? session.property_id ?? "");
+      const roomId = String(session.roomId ?? session.room_id ?? "");
+      const startedAt = toDateOrNull(session.startedAt ?? session.startTime);
+      const endedAt = toDateOrNull(session.endedAt ?? session.endTime);
+
+      if (!equipmentId || !propertyId || !roomId || !startedAt || !endedAt) {
+        continue;
+      }
+
+      const durationHours =
+        (endedAt.getTime() - startedAt.getTime()) / (1000 * 60 * 60);
+
+      if (!Number.isFinite(durationHours) || durationHours <= 0) {
+        continue;
+      }
+
+      const powerRatingWatts = toPositiveNumber(
+        session.effectiveWatt ?? session.powerRatingWatts
       );
-    });
+      const computedKwh =
+        powerRatingWatts > 0 ? (powerRatingWatts / 1000) * durationHours : 0;
+      const kwh = Math.max(
+        0,
+        toPositiveNumber(session.energyKwh) || computedKwh
+      );
 
-    const roomAggregates = Array.from(roomMap.entries()).map(([roomId, totalKwh]) => ({
-        scope: "ROOM",
-        refId: roomId,
-        type: "DAILY",
-        date: dayStart,
-        year: dayStart.getFullYear(),
-        month: dayStart.getMonth() + 1,
-        totalKwh,
-      }));
+      if (kwh <= 0) {
+        continue;
+      }
 
-    if (roomAggregates.length > 0) {
-      await EnergyAggregate.insertMany(roomAggregates);
+      const propertyEquipmentTotals =
+        propertyEquipmentMap.get(propertyId) ?? new Map<string, number>();
+      propertyEquipmentTotals.set(
+        equipmentId,
+        (propertyEquipmentTotals.get(equipmentId) || 0) + kwh
+      );
+      propertyEquipmentMap.set(propertyId, propertyEquipmentTotals);
+
+      const roomEquipmentTotals =
+        roomEquipmentMap.get(roomId) ?? new Map<string, number>();
+      roomEquipmentTotals.set(
+        equipmentId,
+        (roomEquipmentTotals.get(equipmentId) || 0) + kwh
+      );
+      roomEquipmentMap.set(roomId, roomEquipmentTotals);
     }
 
-    /** PROPERTY LEVEL */
-    const rooms = await Room.find({
-      _id: { $in: Array.from(roomMap.keys()) },
-    });
+    const year = dayStart.getFullYear();
+    const month = dayStart.getMonth() + 1;
 
-    const propertyMap = new Map<string, number>();
-    rooms.forEach(r => {
-      const roomEnergy = roomMap.get(r._id.toString()) || 0;
-      propertyMap.set(
-        r.propertyId.toString(),
-        (propertyMap.get(r.propertyId.toString()) || 0) + roomEnergy
+    for (const [propertyId, equipmentMap] of propertyEquipmentMap.entries()) {
+      for (const [equipmentId, totalKwh] of equipmentMap.entries()) {
+        await EnergyAggregate.findOneAndUpdate(
+          {
+            scope: "EQUIPMENT",
+            refId: equipmentId,
+            type: "DAILY",
+            date: dayStart,
+          },
+          {
+            scope: "EQUIPMENT",
+            refId: equipmentId,
+            type: "DAILY",
+            totalKwh,
+            year,
+            month,
+            date: dayStart,
+          },
+          { upsert: true, new: true }
+        );
+      }
+
+      const totalKwh = sum(Array.from(equipmentMap.values()));
+
+      console.log("Aggregation Debug:");
+      console.log("Date:", date);
+      console.log("Equipment count:", equipmentMap.size);
+      console.log("Total kWh:", totalKwh);
+
+      await EnergyAggregate.findOneAndUpdate(
+        {
+          scope: "PROPERTY",
+          refId: propertyId,
+          type: "DAILY",
+          date: dayStart,
+        },
+        {
+          scope: "PROPERTY",
+          refId: propertyId,
+          type: "DAILY",
+          totalKwh,
+          year,
+          month,
+          date: dayStart,
+        },
+        { upsert: true, new: true }
       );
-    });
 
-    const propertyAggregates = Array.from(propertyMap.entries()).map(
-      ([propertyId, totalKwh]) => ({
-        scope: "PROPERTY",
-        refId: propertyId,
-        type: "DAILY",
-        date: dayStart,
-        year: dayStart.getFullYear(),
-        month: dayStart.getMonth() + 1,
-        totalKwh,
-      })
-    );
+      await BillingSettingsService.checkAndSendAlerts(propertyId, date);
+    }
 
-    if (propertyAggregates.length > 0) {
-      await EnergyAggregate.insertMany(propertyAggregates);
+    for (const [roomId, equipmentMap] of roomEquipmentMap.entries()) {
+      const totalKwh = sum(Array.from(equipmentMap.values()));
+
+      await EnergyAggregate.findOneAndUpdate(
+        {
+          scope: "ROOM",
+          refId: roomId,
+          type: "DAILY",
+          date: dayStart,
+        },
+        {
+          scope: "ROOM",
+          refId: roomId,
+          type: "DAILY",
+          totalKwh,
+          year,
+          month,
+          date: dayStart,
+        },
+        { upsert: true, new: true }
+      );
     }
 
     return true;
   }
 
-//   monthly
   static async monthly(scope: string, refId: string, month: number, year: number) {
     const data = await EnergyAggregate.find({
       scope,
@@ -120,7 +223,7 @@ export class AggregationService {
       year,
     });
 
-    const totalKwh = sum(data.map(d => d.totalKwh));
+    const totalKwh = sum(data.map((d) => d.totalKwh));
 
     return {
       scope,
@@ -132,7 +235,6 @@ export class AggregationService {
     };
   }
 
-  
   static async range(scope: string, refId: string, from: string, to: string) {
     const { start, end } = getDayRange(from, to);
 
@@ -143,6 +245,6 @@ export class AggregationService {
       date: { $gte: start, $lte: end },
     });
 
-    return sum(data.map(d => d.totalKwh));
+    return sum(data.map((d) => d.totalKwh));
   }
 }

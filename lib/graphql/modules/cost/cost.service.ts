@@ -66,7 +66,18 @@ export class CostService {
     };
   }
 
-  private static calculateStandardSlabCost(totalKwh: number) {
+  private static calculateSlabCost(
+    totalKwh: number,
+    configuredSlabs?: Array<{ uptoKwh?: number | null; pricePerUnit: number }>
+  ) {
+    const slabs =
+      Array.isArray(configuredSlabs) && configuredSlabs.length > 0
+        ? configuredSlabs.map((slab) => ({
+            uptoKwh: slab.uptoKwh ?? null,
+            pricePerUnit: slab.pricePerUnit,
+          }))
+        : CostService.STANDARD_SLABS;
+
     let remaining = totalKwh;
     let totalCost = 0;
     const breakdown: {
@@ -78,7 +89,7 @@ export class CostService {
 
     let prevLimit = 0;
 
-    for (const slab of CostService.STANDARD_SLABS) {
+    for (const slab of slabs) {
       if (remaining <= 0) {
         break;
       }
@@ -167,7 +178,7 @@ export class CostService {
       return CostService.calculateFlatCost(totalKwh, pricePerUnit);
     }
 
-    return CostService.calculateStandardSlabCost(totalKwh);
+    return CostService.calculateSlabCost(totalKwh, tariff.slabs);
   }
 
   static async calculateWithTariff(
@@ -189,6 +200,6 @@ export class CostService {
       return CostService.calculateFlatCost(totalKwh, flatPricePerUnit);
     }
 
-    return CostService.calculateStandardSlabCost(totalKwh);
+    return CostService.calculateSlabCost(totalKwh);
   }
 }

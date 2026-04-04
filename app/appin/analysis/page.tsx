@@ -93,6 +93,7 @@ type UsageSessionRecord = {
   durationMinutes?: number | null;
   energyKwh?: number | null;
   cost?: number | null;
+  isActive?: boolean | null;
 };
 
 type MeQueryData = {
@@ -126,12 +127,89 @@ type UsageSessionsQueryData = {
 const ASSUMED_HOURS_PER_DAY = 4;
 const DAYS_PER_MONTH = 30;
 const RATE_PER_KWH = 8;
+const LIVE_POLL_INTERVAL_MS = 10000;
 
 const formatUsageValue = (value: number) => {
   if (value === 0) return "0.00";
   if (Math.abs(value) < 0.01) return value.toFixed(4);
   if (Math.abs(value) < 0.1) return value.toFixed(3);
   return value.toFixed(2);
+};
+
+const startOfDay = (value: Date) =>
+  new Date(value.getFullYear(), value.getMonth(), value.getDate());
+
+const startOfMonth = (value: Date) =>
+  new Date(value.getFullYear(), value.getMonth(), 1);
+
+const isSameDay = (left: Date, right: Date) =>
+  left.getFullYear() === right.getFullYear() &&
+  left.getMonth() === right.getMonth() &&
+  left.getDate() === right.getDate();
+
+const aggregateSessionsByHour = (sessions: UsageSessionRecord[], referenceDate: Date) => {
+  const baseDay = startOfDay(referenceDate);
+  const rows = Array.from({ length: 24 }, (_, hour) => {
+    const bucketStart = new Date(baseDay);
+    bucketStart.setHours(hour, 0, 0, 0);
+    const bucketEnd = new Date(bucketStart);
+    bucketEnd.setHours(hour + 1, 0, 0, 0);
+
+    const value = sessions.reduce((sum, session) => {
+      const sessionDate = new Date(session.endedAt ?? session.startedAt);
+      if (!isSameDay(sessionDate, referenceDate)) {
+        return sum;
+      }
+
+      const bucketTime = sessionDate.getTime();
+      return bucketTime >= bucketStart.getTime() && bucketTime < bucketEnd.getTime()
+        ? sum + (session.energyKwh ?? 0)
+        : sum;
+    }, 0);
+
+    return {
+      label: bucketStart.toLocaleTimeString([], {
+        hour: "numeric",
+      }),
+      value,
+      meta: `${hour.toString().padStart(2, "0")}:00 - ${(hour + 1)
+        .toString()
+        .padStart(2, "0")}:00`,
+    };
+  });
+
+  return rows.filter((row) => row.value > 0);
+};
+
+const aggregateSessionsByDayOfMonth = (sessions: UsageSessionRecord[], referenceDate: Date) => {
+  const monthStart = startOfMonth(referenceDate);
+  const daysInMonth = new Date(
+    referenceDate.getFullYear(),
+    referenceDate.getMonth() + 1,
+    0
+  ).getDate();
+
+  const rows = Array.from({ length: daysInMonth }, (_, index) => {
+    const bucketDate = new Date(monthStart);
+    bucketDate.setDate(index + 1);
+
+    const value = sessions.reduce((sum, session) => {
+      const sessionDate = new Date(session.endedAt ?? session.startedAt);
+      return isSameDay(sessionDate, bucketDate) ? sum + (session.energyKwh ?? 0) : sum;
+    }, 0);
+
+    return {
+      label: bucketDate.toLocaleDateString([], { day: "numeric", month: "short" }),
+      value,
+      meta: bucketDate.toLocaleDateString([], {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      }),
+    };
+  });
+
+  return rows.filter((row) => row.value > 0);
 };
 
 const DEVICE_META_BY_CATALOG_ID: Record<
@@ -152,6 +230,19 @@ const DEVICE_META_BY_CATALOG_ID: Record<
   "00000000000000000000000c": { name: "Table Lamp", category: "Lighting" },
 };
 
+const getCatalogDeviceMeta = (catalogId?: string | null) => {
+  if (!catalogId) {
+    return { name: "Device", category: "Other" };
+  }
+
+  return (
+    DEVICE_META_BY_CATALOG_ID[catalogId] ?? {
+      name: `Device ${catalogId.slice(-4).toUpperCase()}`,
+      category: "Other",
+    }
+  );
+};
+
 export default function Analysis() {
   const router = useRouter();
   const apolloClient = useApolloClient();
@@ -163,6 +254,7 @@ export default function Analysis() {
     []
   );
   const [sessionEdits, setSessionEdits] = useState<Record<string, string>>({});
+  const [liveNow, setLiveNow] = useState(() => new Date());
 
   const menuItems = [
     { id: "home", label: "Home", icon: Home, path: "/appin/dashboard" },
@@ -203,6 +295,7 @@ export default function Analysis() {
     variables: { propertyId: selectedPropertyId },
     skip: selectedPropertyId === "all",
     fetchPolicy: "network-only",
+    pollInterval: LIVE_POLL_INTERVAL_MS,
   });
 
   const propertyEquipments: Equipment[] = useMemo(
@@ -217,6 +310,7 @@ export default function Analysis() {
     variables: { propertyId: selectedPropertyId },
     skip: selectedPropertyId === "all",
     fetchPolicy: "network-only",
+    pollInterval: LIVE_POLL_INTERVAL_MS,
   });
   const [updateUsageSessionDuration] = useMutation(UPDATE_USAGE_SESSION_DURATION_MUTATION);
 
@@ -224,6 +318,7 @@ export default function Analysis() {
     variables: { roomId: selectedRoomId },
     skip: selectedRoomId === "all",
     fetchPolicy: "network-only",
+    pollInterval: LIVE_POLL_INTERVAL_MS,
   });
 
   const equipments: Equipment[] = useMemo(
@@ -253,6 +348,16 @@ export default function Analysis() {
 
   const activeQuantityForEquipment = (equipment: Equipment) =>
     equipment.isOn ? equipment.quantity || 1 : 0;
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setLiveNow(new Date());
+    }, LIVE_POLL_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -371,7 +476,7 @@ export default function Analysis() {
   };
 
   const viewLevel = getViewLevel();
-  const today = useMemo(() => new Date(), []);
+  const today = liveNow;
   const currentMonth = today.getMonth();
   const currentYear = today.getFullYear();
   const daysInCurrentMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
@@ -384,18 +489,17 @@ export default function Analysis() {
         : globalStats.totalPower;
 
   const selectedUsageSessions = useMemo(() => {
-    const completedSessions = propertyUsageSessions.filter(
+    const relevantSessions = propertyUsageSessions.filter(
       (session) =>
-        Boolean(session.endedAt) &&
         typeof session.energyKwh === "number" &&
-        session.energyKwh > 0
+        session.energyKwh >= 0
     );
 
     if (selectedRoomId === "all") {
-      return completedSessions;
+      return relevantSessions;
     }
 
-    return completedSessions.filter((session) => session.roomId === selectedRoomId);
+    return relevantSessions.filter((session) => session.roomId === selectedRoomId);
   }, [propertyUsageSessions, selectedRoomId]);
 
   const currentMonthUsageSessions = useMemo(
@@ -422,6 +526,39 @@ export default function Analysis() {
       }),
     [selectedUsageSessions, today]
   );
+
+  const equipmentLabelById = useMemo(() => {
+    const sourceEquipments =
+      viewLevel === "room"
+        ? equipments
+        : viewLevel === "property"
+          ? propertyEquipments
+          : [];
+
+    const nextMap = new Map<string, string>();
+    const counters: Record<string, number> = {};
+
+    sourceEquipments.forEach((equipment) => {
+      const baseName = getCatalogDeviceMeta(equipment.catalogId).name;
+      counters[baseName] = (counters[baseName] ?? 0) + 1;
+      nextMap.set(equipment.id, `${baseName} ${counters[baseName]}`);
+    });
+
+    return nextMap;
+  }, [equipments, propertyEquipments, viewLevel]);
+
+  const getUsageSessionLabel = (session: UsageSessionRecord) => {
+    const mappedLabel = equipmentLabelById.get(session.equipmentId);
+    if (mappedLabel) {
+      return mappedLabel;
+    }
+
+    if (session.equipmentName && session.equipmentName.trim() && session.equipmentName !== "Device") {
+      return session.equipmentName.trim();
+    }
+
+    return getCatalogDeviceMeta(session.catalogId).name;
+  };
 
   const scopedUsageSessions = useMemo(() => {
     if (trendMode === "day") return todaySessions;
@@ -471,9 +608,10 @@ export default function Analysis() {
       const propertyScopeSessions =
         trendMode === "day"
           ? propertyUsageSessions.filter((session) => {
-              if (!session.endedAt || typeof session.energyKwh !== "number") {
+              if (typeof session.energyKwh !== "number") {
                 return false;
               }
+
               const sessionDate = getSessionAccountingDate(session);
               return (
                 sessionDate.getFullYear() === today.getFullYear() &&
@@ -483,9 +621,10 @@ export default function Analysis() {
             })
           : trendMode === "month"
             ? propertyUsageSessions.filter((session) => {
-                if (!session.endedAt || typeof session.energyKwh !== "number") {
+                if (typeof session.energyKwh !== "number") {
                   return false;
                 }
+
                 const sessionDate = getSessionAccountingDate(session);
                 return (
                   sessionDate.getFullYear() === currentYear &&
@@ -494,9 +633,8 @@ export default function Analysis() {
               })
             : propertyUsageSessions.filter(
                 (session) =>
-                  Boolean(session.endedAt) &&
                   typeof session.energyKwh === "number" &&
-                  (session.energyKwh ?? 0) > 0
+                  (session.energyKwh ?? 0) >= 0
               );
 
       return rooms
@@ -549,20 +687,27 @@ export default function Analysis() {
   const deviceBreakdown = useMemo<BreakdownRow[]>(() => {
     if (viewLevel !== "global" && scopedUsageSessions.length > 0) {
       const aggregated = scopedUsageSessions.reduce<
-        Record<string, { value: number; count: number }>
+        Record<string, { label: string; value: number; count: number }>
       >((acc, session) => {
-        if (!acc[session.equipmentName]) {
-          acc[session.equipmentName] = { value: 0, count: 0 };
+        const aggregationKey =
+          viewLevel === "room" ? session.equipmentId : getUsageSessionLabel(session);
+
+        if (!acc[aggregationKey]) {
+          acc[aggregationKey] = {
+            label: getUsageSessionLabel(session),
+            value: 0,
+            count: 0,
+          };
         }
 
-        acc[session.equipmentName].value += session.energyKwh ?? 0;
-        acc[session.equipmentName].count += 1;
+        acc[aggregationKey].value += session.energyKwh ?? 0;
+        acc[aggregationKey].count += 1;
         return acc;
       }, {});
 
       return Object.entries(aggregated)
-        .map(([label, item]) => ({
-          label,
+        .map(([, item]) => ({
+          label: item.label,
           value: item.value,
           meta: `${item.count} session${item.count === 1 ? "" : "s"}`,
         }))
@@ -581,17 +726,18 @@ export default function Analysis() {
 
     const aggregated = source.reduce<Record<string, { value: number; count: number }>>(
       (acc, equipment) => {
-        const meta = DEVICE_META_BY_CATALOG_ID[equipment.catalogId] ?? {
-          name: `Device ${equipment.catalogId.slice(-4).toUpperCase()}`,
-          category: "Other",
-        };
+        const meta = getCatalogDeviceMeta(equipment.catalogId);
+        const label =
+          viewLevel === "room"
+            ? equipmentLabelById.get(equipment.id) ?? meta.name
+            : meta.name;
 
-        if (!acc[meta.name]) {
-          acc[meta.name] = { value: 0, count: 0 };
+        if (!acc[label]) {
+          acc[label] = { value: 0, count: 0 };
         }
 
-        acc[meta.name].value += monthlyKwhForEquipment(equipment);
-        acc[meta.name].count += activeQuantityForEquipment(equipment);
+        acc[label].value += monthlyKwhForEquipment(equipment);
+        acc[label].count += activeQuantityForEquipment(equipment);
         return acc;
       },
       {}
@@ -605,7 +751,7 @@ export default function Analysis() {
       }))
       .filter((item) => item.value > 0 || item.meta !== "0 units")
       .sort((a, b) => b.value - a.value);
-  }, [equipments, propertyEquipments, scopedUsageSessions, viewLevel]);
+  }, [equipments, equipmentLabelById, propertyEquipments, scopedUsageSessions, viewLevel]);
 
   const categoryBreakdown = useMemo<BreakdownRow[]>(() => {
     if (viewLevel !== "room") return [];
@@ -660,37 +806,20 @@ export default function Analysis() {
     [globalPropertyBreakdown]
   );
 
+  const dailyTimelineRows = useMemo<BreakdownRow[]>(
+    () => aggregateSessionsByHour(selectedUsageSessions, today),
+    [selectedUsageSessions, today]
+  );
+
+  const monthlyTimelineRows = useMemo<BreakdownRow[]>(
+    () => aggregateSessionsByDayOfMonth(selectedUsageSessions, today),
+    [selectedUsageSessions, today]
+  );
+
   const trendRows = useMemo<BreakdownRow[]>(() => {
     if (viewLevel !== "global" && selectedUsageSessions.length > 0) {
-      if (trendMode === "day") {
-        return viewLevel === "room" ? deviceBreakdown : roomBreakdown;
-      }
-
-      if (trendMode === "month") {
-        const monthlyMap = new Map<string, number>();
-
-        selectedUsageSessions.forEach((session) => {
-          const sessionDate = getSessionAccountingDate(session);
-          const key = `${sessionDate.getFullYear()}-${sessionDate.getMonth()}`;
-          monthlyMap.set(key, (monthlyMap.get(key) ?? 0) + (session.energyKwh ?? 0));
-        });
-
-        return Array.from(monthlyMap.entries())
-          .map(([key, value]) => {
-            const [year, month] = key.split("-").map(Number);
-            return {
-              sortKey: year * 100 + month,
-              label: new Date(year, month, 1).toLocaleDateString(undefined, {
-                month: "short",
-                year: "numeric",
-              }),
-              value,
-            };
-          })
-          .sort((a, b) => a.sortKey - b.sortKey)
-          .slice(-6);
-      }
-
+      if (trendMode === "day") return dailyTimelineRows;
+      if (trendMode === "month") return monthlyTimelineRows;
       return deviceBreakdown;
     }
 
@@ -721,8 +850,10 @@ export default function Analysis() {
       return item;
     });
   }, [
+    dailyTimelineRows,
     deviceBreakdown,
     globalDistribution,
+    monthlyTimelineRows,
     roomBreakdown,
     selectedUsageSessions,
     trendMode,
@@ -792,16 +923,16 @@ export default function Analysis() {
         : selectedUsageSessions;
   const roomPanelTitle =
     trendMode === "day"
-      ? "Today's Sessions"
+      ? "Today's Usage"
       : trendMode === "month"
-        ? "This Month's Sessions"
-        : "Completed Sessions";
+        ? "This Month's Usage"
+        : "Usage Sessions";
   const roomPanelDescription =
     trendMode === "day"
-      ? "Completed sessions from today. Same-day sessions can be edited."
+      ? "Today's device sessions update automatically while active. Completed sessions from today can be edited."
       : trendMode === "month"
-        ? "Completed sessions in the current month. Only today's sessions are editable."
-        : "Completed sessions across this room's history. Only today's sessions are editable.";
+        ? "Month-to-date device sessions, including active usage. Only completed sessions from today are editable."
+        : "Full room session history, including active usage. Only completed sessions from today are editable.";
   const roomPanelEnergyLabel =
     trendMode === "day"
       ? "Today's Energy"
@@ -810,10 +941,10 @@ export default function Analysis() {
         : "Total Energy";
   const roomPanelEmptyMessage =
     trendMode === "day"
-      ? "No completed usage sessions for this room today."
+      ? "No usage sessions recorded for this room today."
       : trendMode === "month"
-        ? "No completed usage sessions for this room in the current month."
-        : "No completed usage sessions saved for this room yet.";
+        ? "No usage sessions recorded for this room in the current month."
+        : "No usage sessions saved for this room yet.";
 
   const scopedDisplayTotalKwh =
     selectedUsageSessions.length > 0
@@ -1170,9 +1301,9 @@ export default function Analysis() {
                   ) : (
                     <div className="space-y-3">
                       {roomPanelSessions.map((session) => {
-                        const isEditableToday = todaySessions.some(
-                          (todaySession) => todaySession._id === session._id
-                        );
+                        const isEditableToday =
+                          !session.isActive &&
+                          todaySessions.some((todaySession) => todaySession._id === session._id);
 
                         return (
                         <div
@@ -1182,7 +1313,7 @@ export default function Analysis() {
                           <div className="flex items-start justify-between gap-4">
                             <div>
                               <p className="font-medium text-foreground">
-                                {session.equipmentName}
+                                {getUsageSessionLabel(session)}
                               </p>
                               <p className="text-sm text-muted-foreground">
                                 {new Date(session.startedAt).toLocaleTimeString([], {

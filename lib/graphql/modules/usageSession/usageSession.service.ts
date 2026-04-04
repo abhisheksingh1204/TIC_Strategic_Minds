@@ -57,6 +57,23 @@ type PropertyLike = {
   _id: mongoose.Types.ObjectId | string;
 };
 
+type LegacySessionDoc = mongoose.Document & {
+  userId?: mongoose.Types.ObjectId | string;
+  roomId?: mongoose.Types.ObjectId | string;
+  propertyId?: mongoose.Types.ObjectId | string;
+  effectiveWatt?: number;
+  sessionDate?: string;
+  isActive?: boolean;
+  isManuallyEdited?: boolean;
+  equipmentName?: string;
+  durationHours?: number | null;
+  endedAt?: Date | null;
+  startedAt: Date;
+  energyKwh?: number | null;
+  cost?: number | null;
+  save: () => Promise<unknown>;
+};
+
 const roundTo = (value: number, decimals = 6) =>
   Number(value.toFixed(decimals));
 
@@ -101,6 +118,21 @@ const assertRoomOwnership = async (userId: string, roomId: string) => {
   }
 
   return { room, property };
+};
+
+const assertPropertyOwnership = async (userId: string, propertyId: string) => {
+  assertObjectId(propertyId, "property id");
+
+  const property = await Property.findOne({
+    _id: propertyId,
+    userId,
+  });
+
+  if (!property) {
+    throw new GraphQLError("Unauthorized access to property");
+  }
+
+  return property;
 };
 
 const assertEquipmentOwnership = async (userId: string, equipmentId: string) => {
@@ -166,7 +198,7 @@ const activeSessionQuery = (equipmentId: string) => ({
 });
 
 const hydrateLegacySession = async (
-  session: mongoose.Document & Record<string, any>,
+  session: LegacySessionDoc,
   {
     equipment,
     room,
@@ -370,6 +402,28 @@ export class UsageSessionService {
     await assertRoomOwnership(authenticatedUserId, roomId);
 
     const query: Record<string, unknown> = { roomId };
+    if (date) {
+      query.sessionDate = date;
+    }
+
+    const sessions = await UsageSession.find(query).sort({ startedAt: -1 });
+    return Promise.all(
+      sessions.map((session) =>
+        buildSessionView(session as unknown as UsageSessionDoc)
+      )
+    );
+  }
+
+  static async getByProperty(
+    userId: string | undefined,
+    propertyId: string,
+    date?: string | null
+  ) {
+    const authenticatedUserId = assertUser(userId);
+
+    await assertPropertyOwnership(authenticatedUserId, propertyId);
+
+    const query: Record<string, unknown> = { propertyId };
     if (date) {
       query.sessionDate = date;
     }

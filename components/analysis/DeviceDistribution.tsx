@@ -1,12 +1,24 @@
 "use client";
 
-import { PieChart } from "lucide-react";
+import { PieChart as PieChartIcon } from "lucide-react";
+import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 
 type DistributionDatum = {
   label: string;
   value: number;
   meta?: string;
 };
+
+const CHART_COLORS = [
+  "#2563eb",
+  "#0f766e",
+  "#ea580c",
+  "#7c3aed",
+  "#dc2626",
+  "#0891b2",
+  "#65a30d",
+  "#c2410c",
+];
 
 const formatUsageValue = (value: number) => {
   if (value === 0) return "0.00";
@@ -31,6 +43,10 @@ export const DeviceDistribution = ({
   emptyMessage?: string;
 }) => {
   const totalValue = data.reduce((sum, item) => sum + item.value, 0);
+  const chartData = data.map((item, index) => ({
+    ...item,
+    fill: CHART_COLORS[index % CHART_COLORS.length],
+  }));
 
   return (
     <div className="bg-card rounded-xl border border-border p-6 h-full">
@@ -38,53 +54,68 @@ export const DeviceDistribution = ({
         <h3 className="text-lg font-semibold text-foreground">{title}</h3>
         <span className="text-xs text-muted-foreground capitalize">{trendMode}</span>
       </div>
-      {data.length === 0 ? (
+      {chartData.length === 0 ? (
         <div className="flex items-center justify-center h-[300px] border border-dashed border-border rounded-lg bg-secondary/20">
           <div className="text-center text-muted-foreground">
-            <PieChart className="h-12 w-12 mx-auto mb-3 opacity-40" />
+            <PieChartIcon className="h-12 w-12 mx-auto mb-3 opacity-40" />
             <p className="text-sm">{emptyMessage}</p>
             {typeof totalKwh === "number" && (
-              <p className="text-xs mt-2">Total usage: {formatUsageValue(totalKwh)} kWh</p>
+              <p className="text-xs mt-2">
+                Total usage: {formatUsageValue(totalKwh)} {unitLabel}
+              </p>
             )}
           </div>
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="rounded-lg border border-border bg-secondary/10 p-4">
-            <div className="flex h-4 overflow-hidden rounded-full bg-secondary">
-              {data.map((item, index) => {
-                const share = totalValue > 0 ? (item.value / totalValue) * 100 : 0;
-                const colors = [
-                  "bg-primary",
-                  "bg-accent",
-                  "bg-emerald-500",
-                  "bg-amber-500",
-                  "bg-sky-500",
-                  "bg-rose-500",
-                ];
-
-                return (
-                  <div
-                    key={item.label}
-                    className={colors[index % colors.length]}
-                    style={{ width: `${share}%` }}
-                  />
-                );
-              })}
-            </div>
+          <div className="rounded-lg border border-border bg-secondary/10 p-4 h-[320px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={chartData}
+                  dataKey="value"
+                  nameKey="label"
+                  cx="50%"
+                  cy="48%"
+                  innerRadius={58}
+                  outerRadius={102}
+                  paddingAngle={2}
+                >
+                  {chartData.map((entry) => (
+                    <Cell key={entry.label} fill={entry.fill} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#0f172a",
+                    border: "1px solid rgba(148, 163, 184, 0.2)",
+                    borderRadius: "12px",
+                    color: "#f8fafc",
+                  }}
+                  formatter={(value, _name, item) => {
+                    const numericValue = Number(value ?? 0);
+                    const share = totalValue > 0 ? (numericValue / totalValue) * 100 : 0;
+                    return [
+                      `${formatUsageValue(numericValue)} ${unitLabel} (${share.toFixed(1)}%)`,
+                      item.payload.label,
+                    ];
+                  }}
+                />
+                <Legend
+                  verticalAlign="bottom"
+                  align="center"
+                  iconType="circle"
+                  formatter={(value) => (
+                    <span className="text-xs text-muted-foreground">{value}</span>
+                  )}
+                />
+              </PieChart>
+            </ResponsiveContainer>
           </div>
 
           <div className="space-y-3">
-            {data.map((item, index) => {
+            {chartData.map((item) => {
               const share = totalValue > 0 ? (item.value / totalValue) * 100 : 0;
-              const dotColors = [
-                "bg-primary",
-                "bg-accent",
-                "bg-emerald-500",
-                "bg-amber-500",
-                "bg-sky-500",
-                "bg-rose-500",
-              ];
 
               return (
                 <div
@@ -93,7 +124,8 @@ export const DeviceDistribution = ({
                 >
                   <div className="flex min-w-0 items-start gap-3">
                     <span
-                      className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${dotColors[index % dotColors.length]}`}
+                      className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: item.fill }}
                     />
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium text-foreground">

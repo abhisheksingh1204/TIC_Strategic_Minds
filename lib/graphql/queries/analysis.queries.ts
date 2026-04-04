@@ -12,6 +12,7 @@ export const USAGE_SESSIONS_QUERY = gql`
       startedAt
       endedAt
       durationMinutes
+      isActive
       energyKwh
       cost
     }
@@ -33,6 +34,7 @@ export const UPDATE_USAGE_SESSION_DURATION_MUTATION = gql`
       startedAt
       endedAt
       durationMinutes
+      isActive
       energyKwh
       cost
     }

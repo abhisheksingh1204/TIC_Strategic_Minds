@@ -75,12 +75,12 @@ export function AppShell({
             <div className="app-user-avatar">
               <User className="h-7 w-7" />
             </div>
-            <div>
+            <div className="min-w-0 flex-1">
               <div className="text-sm text-slate-400">Signed in as</div>
-              <div className="mt-1 text-lg font-semibold text-white">
+              <div className="mt-1 truncate text-lg font-semibold text-white">
                 {getUserDisplayName(user ?? undefined)}
               </div>
-              <div className="mt-1 text-sm text-slate-500">{user?.email || "No email"}</div>
+              <div className="mt-1 truncate text-sm text-slate-500">{user?.email || "No email"}</div>
             </div>
           </div>
 

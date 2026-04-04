@@ -36,6 +36,10 @@ const UserBillingSettingsSchema = new Schema(
       type: Date,
       default: null,
     },
+    last_alert_error: {
+      type: String,
+      default: null,
+    },
   },
   { timestamps: true }
 );

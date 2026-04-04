@@ -24,6 +24,18 @@ export const CREATE_PROPERTY_MUTATION = gql`
   }
 `;
 
+export const UPDATE_PROPERTY_MUTATION = gql`
+  mutation UpdateProperty($propertyId: ID!, $input: UpdatePropertyInput!) {
+    updateProperty(propertyId: $propertyId, input: $input) {
+      id
+      propertyName
+      propertyType
+      createdAt
+      updatedAt
+    }
+  }
+`;
+
 export const DELETE_PROPERTY_MUTATION = gql`
   mutation DeleteProperty($propertyId: ID!) {
     deleteProperty(propertyId: $propertyId)

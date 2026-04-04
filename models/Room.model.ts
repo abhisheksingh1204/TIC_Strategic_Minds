@@ -7,7 +7,7 @@ const RoomSchema = new Schema(
       ref: "Property",
       required: true,
     },
-    roomName: { type: String, required: true },
+    roomName: { type: String, required: true, trim: true },
     roomType: { type: String },
   },
   { timestamps: true }

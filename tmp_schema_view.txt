@@ -1,0 +1,75 @@
+﻿// Power-Fusion/lib/graphql/schema.ts
+
+import { makeExecutableSchema } from "@graphql-tools/schema";
+
+import { baseTypeDefs } from "./base.typeDefs";
+
+// AUTH
+import { authTypeDefs } from "./modules/auth/auth.typeDefs";
+import { authResolvers } from "./modules/auth/auth.resolvers";
+
+// ANALYSIS
+import { analysisTypeDefs } from "./modules/analysis/analysis.typeDefs";
+import { analysisResolvers } from "./modules/analysis/analysis.resolvers";
+
+// AGGREGATION
+import { aggregationTypeDefs } from "./modules/aggregation/aggregation.typeDefs";
+import { aggregationResolvers } from "./modules/aggregation/aggregation.resolvers";
+
+// TARIFF
+import { tariffTypeDefs } from "./modules/tariff/tariff.typeDefs";
+import { tariffResolvers } from "./modules/tariff/tariff.resolvers";
+
+// COST
+import { costTypeDefs } from "./modules/cost/cost.typeDefs";
+import { costResolvers } from "./modules/cost/cost.resolvers";
+
+// PROPERTIES
+import { propertyTypeDefs } from "./modules/properties/property.typeDefs";
+import { propertyResolvers } from "./modules/properties/property.resolvers";
+
+// ROOMS
+import { roomTypeDefs } from "./modules/rooms/room.typeDefs";
+import { roomResolvers } from "./modules/rooms/room.resolvers";
+
+// EQUIPMENT
+import { equipmentTypeDefs } from "./modules/equipment/equipment.typeDefs";
+import { equipmentResolvers } from "./modules/equipment/equipment.resolvers";
+
+// SIMULATION
+import { simulationTypeDefs } from "./modules/simulation/simulation.typeDefs";
+import { simulationResolvers } from "./modules/simulation/simulation.resolver";
+
+//temperory for testing
+import { propertyTypeDef } from "./modules/property/property.typeDefs";
+import { propertyResolver } from "./modules/property/property.resolvers";
+
+
+export const schema = makeExecutableSchema({
+  typeDefs: [
+    baseTypeDefs,
+  authTypeDefs,
+  propertyTypeDefs,
+  roomTypeDefs,
+  equipmentTypeDefs,
+  simulationTypeDefs,
+  analysisTypeDefs,
+  aggregationTypeDefs,
+  tariffTypeDefs,
+  costTypeDefs,
+  propertyTypeDef,      // ðŸ‘ˆ TEMP
+
+],
+  resolvers: [
+  authResolvers,
+  propertyResolvers,
+  roomResolvers,
+  equipmentResolvers,
+  simulationResolvers,
+  analysisResolvers,
+  aggregationResolvers,
+  tariffResolvers,
+  costResolvers,
+  propertyResolver,     // ðŸ‘ˆ TEMP
+],
+});

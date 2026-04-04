@@ -56,6 +56,27 @@ export default function Help() {
     SEND_SUPPORT_EMAIL_MUTATION
   );
 
+  const handleOpenFaq = () => {
+    document.getElementById("help-faqs")?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  };
+
+  const handleOpenVideoTutorial = () => {
+    window.open(
+      "https://youtu.be/85j3aL8JNtw?si=5R2Ll_zHMeiunQtT",
+      "_blank",
+      "noopener,noreferrer"
+    );
+  };
+
+  const helpActions = {
+    "User Guide": handleOpenFaq,
+    "Video Tutorials": handleOpenVideoTutorial,
+    "Contact Support": () => setSupportDialogOpen(true),
+  } as const;
+
   const handleSendSupportEmail = async () => {
     if (!subject.trim()) {
       toast.error("Please enter a subject");
@@ -109,17 +130,22 @@ export default function Help() {
               accent: "text-cyan-300 bg-cyan-400/10",
             },
           ].map(({ icon: Icon, title, description, accent }) => (
-            <div key={title} className="app-content-panel app-card-hover">
+            <button
+              key={title}
+              type="button"
+              onClick={helpActions[title as keyof typeof helpActions]}
+              className="app-content-panel app-card-hover text-left transition-transform hover:-translate-y-0.5"
+            >
               <div className={`flex h-14 w-14 items-center justify-center rounded-[1.2rem] ${accent}`}>
                 <Icon className="h-6 w-6" />
               </div>
               <h2 className="mt-5 text-lg font-semibold text-white">{title}</h2>
               <p className="mt-2 text-sm leading-7 text-slate-400">{description}</p>
-            </div>
+            </button>
           ))}
         </section>
 
-        <section className="app-content-panel">
+        <section id="help-faqs" className="app-content-panel">
           <h2 className="text-xl font-semibold text-white">Frequently Asked Questions</h2>
           <p className="mt-2 text-sm text-slate-400">
             Quick answers for the most common setup and simulation questions.

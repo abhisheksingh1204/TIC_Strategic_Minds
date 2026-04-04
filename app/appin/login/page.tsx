@@ -124,20 +124,6 @@ export default function Login() {
             </Button>
           </form>
 
-          <div className="relative mt-8 flex items-center justify-center text-[#8190aa]">
-            <div className="h-px flex-1 bg-[rgba(64,79,111,0.55)]" />
-            <span className="px-4 text-[16px]">or</span>
-            <div className="h-px flex-1 bg-[rgba(64,79,111,0.55)]" />
-          </div>
-
-          <button
-            type="button"
-            className="mt-8 flex h-[58px] w-full items-center justify-center gap-4 rounded-[16px] border border-[rgba(32,44,71,1)] bg-[rgba(14,21,35,0.55)] text-[16px] font-bold text-[#f7fbff]"
-          >
-            <span className="text-[18px] font-extrabold leading-none">G</span>
-            <span>Login with Google</span>
-          </button>
-
           <p className="mt-9 text-center text-[16px] text-[#8190aa]">
             Don't have account?{" "}
             <Link href="/appin/signup" className="text-[#12c8ff] transition-colors hover:text-[#7edfff]">

@@ -75,11 +75,11 @@ const requestTokenRefresh = async (): Promise<string | null> => {
   return nextAccessToken;
 };
 
-const authLink = etContextLink((_, { headers }) => {
+const authLink = new SetContextLink((prevContext) => {
   const token = getAccessToken();
   return {
     headers: {
-      ...headers,
+      ...prevContext.headers,
       ...(token ? { authorization: `Bearer ${token}` } : {}),
     },
   };
@@ -115,7 +115,7 @@ const errorLink = onError(
           return;
         }
 
-        operation.setContextLink((_, { headers }) => ({
+        operation.setContext(({ headers }) => ({
           headers: {
             ...headers,
             authorization: `Bearer ${token}`,

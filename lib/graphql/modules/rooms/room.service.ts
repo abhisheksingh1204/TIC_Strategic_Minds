@@ -11,6 +11,11 @@ interface CreateRoomInput {
   roomType?: string;
 }
 
+interface UpdateRoomInput {
+  roomName: string;
+  roomType?: string;
+}
+
 export const createRoom = async (
   userId: string | undefined,
   input: CreateRoomInput
@@ -57,6 +62,42 @@ export const getRoomsByProperty = async (
   }
 
   return Room.find({ propertyId }).sort({ createdAt: -1 });
+};
+
+export const updateRoom = async (
+  userId: string | undefined,
+  roomId: string,
+  input: UpdateRoomInput
+) => {
+  if (!userId) {
+    throw new GraphQLError("Unauthorized");
+  }
+
+  const room = await Room.findById(roomId);
+  if (!room) {
+    throw new GraphQLError("Room not found");
+  }
+
+  const property = await Property.findOne({
+    _id: room.propertyId,
+    userId,
+  });
+
+  if (!property) {
+    throw new GraphQLError("Invalid room");
+  }
+
+  const roomName = input.roomName.trim();
+
+  if (!roomName) {
+    throw new GraphQLError("Room name is required");
+  }
+
+  room.roomName = roomName;
+  room.roomType = input.roomType;
+  await room.save();
+
+  return room;
 };
 
 export const deleteRoom = async (

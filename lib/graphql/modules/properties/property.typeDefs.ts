@@ -19,6 +19,10 @@ export const propertyTypeDefs = gql`
     propertyType: PropertyType!
   }
 
+  input UpdatePropertyInput {
+    propertyName: String!
+  }
+
   extend type Query {
     myProperties: [Property!]!
     property(id: ID!): Property
@@ -26,6 +30,7 @@ export const propertyTypeDefs = gql`
 
   extend type Mutation {
     createProperty(input: CreatePropertyInput!): Property!
+    updateProperty(propertyId: ID!, input: UpdatePropertyInput!): Property!
     deleteProperty(propertyId: ID!): Boolean!
   }
 `;

@@ -54,6 +54,41 @@ export class TariffService {
     return true;
   }
 
+  static async update(
+    tariffId: string,
+    tariffType: "FLAT" | "SLAB",
+    slabs: { uptoKwh?: number; pricePerUnit: number }[],
+    userId?: string | null
+  ) {
+    if (!userId) {
+      throw new GraphQLError("Unauthorized");
+    }
+
+    const existingTariff = await Tariff.findById(tariffId);
+    if (!existingTariff) {
+      throw new GraphQLError("Tariff not found");
+    }
+
+    await TariffService.assertPropertyOwnership(
+      String(existingTariff.propertyId),
+      userId
+    );
+
+    if (tariffType === "FLAT" && slabs.length !== 1) {
+      throw new Error("FLAT tariff must have exactly one slab");
+    }
+
+    await Tariff.updateOne(
+      { _id: tariffId },
+      {
+        tariffType,
+        slabs,
+      }
+    );
+
+    return true;
+  }
+
   static async active(propertyId: string, date: string, userId?: string | null) {
     await TariffService.assertPropertyOwnership(propertyId, userId);
 

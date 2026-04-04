@@ -19,6 +19,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { REGISTER_MUTATION } from "@/lib/graphql/queries/auth.queries";
 
+type RegisterMutationData = {
+  register: {
+    accessToken: string;
+    refreshToken: string;
+  };
+};
+
 const plans = [
   { value: "single-room", label: "Single Room" },
   { value: "full-house", label: "Full House" },
@@ -34,7 +41,7 @@ export default function SignUp() {
   const [selectedPlan, setSelectedPlan] = useState("");
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [showPlanDropdown, setShowPlanDropdown] = useState(false);
-  const [register, { loading }] = useMutation(REGISTER_MUTATION);
+  const [register, { loading }] = useMutation<RegisterMutationData>(REGISTER_MUTATION);
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();

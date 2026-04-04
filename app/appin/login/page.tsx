@@ -11,12 +11,19 @@ import { Input } from "@/components/ui/input";
 import { LOGIN_MUTATION } from "@/lib/graphql/queries/auth.queries";
 import { setAuthTokens } from "@/lib/auth";
 
+type LoginMutationData = {
+  login: {
+    accessToken: string;
+    refreshToken: string;
+  };
+};
+
 export default function Login() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [login, { loading }] = useMutation(LOGIN_MUTATION);
+  const [login, { loading }] = useMutation<LoginMutationData>(LOGIN_MUTATION);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

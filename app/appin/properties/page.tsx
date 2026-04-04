@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery } from "@apollo/client/react";
 import {
@@ -51,7 +51,23 @@ interface Room {
   roomType?: string | null;
 }
 
-export default function Properties() {
+type MeQueryData = {
+  me: {
+    id?: string;
+    name?: string | null;
+    email?: string | null;
+  } | null;
+};
+
+type MyPropertiesQueryData = {
+  myProperties: Property[];
+};
+
+type RoomsByPropertyQueryData = {
+  roomsByProperty: Room[];
+};
+
+function PropertiesContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedCreatePropertyType = searchParams.get("createProperty");
@@ -63,12 +79,12 @@ export default function Properties() {
   );
   const [newRoomName, setNewRoomName] = useState("");
 
-  const { data: meData } = useQuery(ME_QUERY, {
+  const { data: meData } = useQuery<MeQueryData>(ME_QUERY, {
     errorPolicy: "all",
     fetchPolicy: "network-only",
   });
 
-  const { data, loading, error } = useQuery(MY_PROPERTIES_QUERY, {
+  const { data, loading, error } = useQuery<MyPropertiesQueryData>(MY_PROPERTIES_QUERY, {
     errorPolicy: "all",
   });
 
@@ -88,7 +104,7 @@ export default function Properties() {
     data: roomsData,
     loading: roomsLoading,
     error: roomsError,
-  } = useQuery(ROOMS_BY_PROPERTY_QUERY, {
+  } = useQuery<RoomsByPropertyQueryData>(ROOMS_BY_PROPERTY_QUERY, {
     variables: { propertyId: selectedProperty?.id ?? "" },
     skip: !selectedProperty,
   });
@@ -431,5 +447,13 @@ export default function Properties() {
         </DialogContent>
       </Dialog>
     </AppShell>
+  );
+}
+
+export default function Properties() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#040814]" />}>
+      <PropertiesContent />
+    </Suspense>
   );
 }

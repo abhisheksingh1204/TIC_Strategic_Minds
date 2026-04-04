@@ -72,7 +72,7 @@ const requestTokenRefresh = async (): Promise<string | null> => {
   return nextAccessToken;
 };
 
-const authLink = new SetContextLink((prevContext, operation) => {
+const authLink = new SetContextLink((prevContext) => {
   const token = getAccessToken();
 
   return {
@@ -99,10 +99,34 @@ const errorLink = onError(({ graphQLErrors, operation, forward, networkError }) 
     return;
   }
 
-  return new Observable((observer) => {
-    const retryWithToken = (token: string | null) => {
-      if (!token) {
-        observer.error(new Error("Unauthorized"));
+    return new Observable((observer) => {
+      const retryWithToken = (token: string | null) => {
+        if (!token) {
+          observer.error(new Error("Unauthorized"));
+          return;
+        }
+
+        operation.setContext(({ headers }) => ({
+          headers: {
+            ...headers,
+            authorization: `Bearer ${token}`,
+          },
+          __wasRetried: true,
+        }));
+
+        const subscription = forward(operation).subscribe({
+          next: (value) => observer.next(value),
+          error: (err) => observer.error(err),
+          complete: () => observer.complete(),
+        });
+
+        return () => subscription.unsubscribe();
+      };
+
+      if (isRefreshing) {
+        pendingResolvers.push((token) => {
+          retryWithToken(token);
+        });
         return;
       }
 

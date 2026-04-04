@@ -3,7 +3,8 @@ import mongoose from "mongoose";
 import Equipment from "@/models/Equipment.model";
 import Room from "@/models/Room.model";
 import Property from "@/models/Property.model";
-import { AnalysisService } from "../analysis/analysis.service";
+import UsageSession from "@/models/UsageSession.model";
+import { UsageSessionService } from "../usageSession/usageSession.service";
 
 interface CreateEquipmentInput {
   roomId: string;
@@ -63,14 +64,16 @@ export const createEquipment = async (
     catalogId: input.catalogId,
     ratedPowerWatt: input.ratedPowerWatt,
     hoursPerDay: input.hoursPerDay ?? 4,
-    isOn: input.isOn ?? false,
+    isOn: false,
     quantity: input.quantity ?? 1,
     efficiencyFactor: input.efficiencyFactor ?? 1,
     mode: input.mode ?? "MANUAL",
   });
 
-  if (equipment.isOn) {
-    await AnalysisService.syncEquipmentSessionState(equipment._id.toString(), true);
+  if (input.isOn) {
+    await UsageSessionService.startForEquipment(userId, equipment._id.toString());
+    equipment.isOn = true;
+    await equipment.save();
   }
 
   return equipment;
@@ -121,8 +124,6 @@ export const updateEquipment = async (
   userId: string | undefined,
   input: UpdateEquipmentInput
 ) => {
-  console.log("updateEquipment called", input.isOn);
-
   if (!userId) {
     throw new GraphQLError("Unauthorized");
   }
@@ -144,9 +145,6 @@ export const updateEquipment = async (
   if (typeof input.hoursPerDay === "number") {
     equipment.hoursPerDay = input.hoursPerDay;
   }
-  if (typeof input.isOn === "boolean") {
-    equipment.isOn = input.isOn;
-  }
   if (typeof input.quantity === "number") {
     equipment.quantity = input.quantity;
   }
@@ -157,20 +155,20 @@ export const updateEquipment = async (
     equipment.mode = input.mode;
   }
 
-  await equipment.save();
-
   if (typeof input.isOn === "boolean" && input.isOn !== previousIsOn) {
-    console.log("updateEquipment syncing session state", {
-      equipmentId: equipment._id.toString(),
-      previousIsOn,
-      nextIsOn: input.isOn,
-    });
-    await AnalysisService.syncEquipmentSessionState(
-      equipment._id.toString(),
-      input.isOn
-    );
+    if (input.isOn) {
+      await UsageSessionService.startForEquipment(userId, equipment._id.toString());
+      equipment.isOn = true;
+    } else {
+      await UsageSessionService.stopForEquipment(userId, equipment._id.toString());
+      equipment.isOn = false;
+    }
+
+    await equipment.save();
+    return equipment;
   }
 
+  await equipment.save();
   return equipment;
 };
 
@@ -191,6 +189,16 @@ export const deleteEquipment = async (
   }
 
   await assertRoomOwnership(userId, String(equipment.roomId));
+
+  const activeSession = await UsageSession.findOne({
+    equipmentId,
+    isActive: true,
+  }).select("_id");
+
+  if (activeSession) {
+    throw new GraphQLError("Turn off the equipment before deleting it");
+  }
+
   await Equipment.deleteOne({ _id: equipmentId });
   return true;
 };

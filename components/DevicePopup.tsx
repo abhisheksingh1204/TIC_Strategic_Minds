@@ -9,7 +9,6 @@ type PopupDevice = {
   instanceId: string;
   name: string;
   wattage: number;
-  hoursPerDay: number;
   isOn: boolean;
 };
 
@@ -39,21 +38,26 @@ export const DevicePopup = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-2xl">
+      <div className="relative z-10 mx-4 w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl">
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-foreground">{localDevice.name}</h3>
+          <div>
+            <h3 className="text-2xl font-semibold text-foreground">{localDevice.name}</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Device power is persisted by the backend. Sessions stay active until you explicitly turn the device off.
+            </p>
+          </div>
           <button
             type="button"
             onClick={onClose}
-            className="text-muted-foreground hover:text-foreground"
+            className="text-xl text-muted-foreground hover:text-foreground"
           >
-            x
+            ×
           </button>
         </div>
 
-        <div className="space-y-4">
-          <div>
-            <label className="text-sm text-muted-foreground">Wattage</label>
+        <div className="space-y-5">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-muted-foreground">Wattage</label>
             <Input
               type="number"
               value={localDevice.wattage}
@@ -65,38 +69,39 @@ export const DevicePopup = ({
               }
             />
           </div>
-          <div>
-            <label className="text-sm text-muted-foreground">Hours Per Day</label>
-            <Input
-              type="number"
-              value={localDevice.hoursPerDay}
-              onChange={(e) =>
-                setLocalDevice({
-                  ...localDevice,
-                  hoursPerDay: Number(e.target.value),
-                })
-              }
-            />
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Power</span>
-            <Switch
-              checked={localDevice.isOn && mcbOn}
-              onCheckedChange={(checked) =>
-                setLocalDevice({ ...localDevice, isOn: checked })
-              }
-            />
+
+          <div className="rounded-2xl border border-border bg-secondary/20 p-4">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-foreground">Device Power</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Turn ON to start a usage session. Turn OFF to close the session and calculate energy and cost.
+                </p>
+              </div>
+              <Switch
+                checked={localDevice.isOn && mcbOn}
+                onCheckedChange={(checked) =>
+                  setLocalDevice({ ...localDevice, isOn: checked })
+                }
+              />
+            </div>
+
+            {!mcbOn && (
+              <p className="mt-3 text-xs text-amber-300">
+                Main MCB is OFF. Turn it on before switching this device on.
+              </p>
+            )}
           </div>
         </div>
 
-        <div className="mt-6 flex items-center justify-between">
+        <div className="mt-8 flex items-center justify-between gap-3">
           <Button
             variant="outline"
             onClick={() => onDelete(localDevice.instanceId)}
           >
             Delete
           </Button>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             <Button variant="ghost" onClick={onClose}>
               Cancel
             </Button>

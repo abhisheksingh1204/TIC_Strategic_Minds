@@ -13,6 +13,12 @@ type CreateTariffArgs = {
   effectiveFrom: string;
 };
 
+type UpdateTariffArgs = {
+  tariffId: string;
+  tariffType: "FLAT" | "SLAB";
+  slabs: { uptoKwh?: number; pricePerUnit: number }[];
+};
+
 export const tariffResolvers = {
   Query: {
     activeTariff: (_: unknown, args: ActiveTariffArgs, context: GraphQLContext) =>
@@ -26,6 +32,13 @@ export const tariffResolvers = {
         args.tariffType,
         args.slabs,
         args.effectiveFrom,
+        context.userId
+      ),
+    updateTariff: (_: unknown, args: UpdateTariffArgs, context: GraphQLContext) =>
+      TariffService.update(
+        args.tariffId,
+        args.tariffType,
+        args.slabs,
         context.userId
       ),
   },

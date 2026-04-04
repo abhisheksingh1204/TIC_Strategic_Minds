@@ -5,13 +5,13 @@ import { Zap } from "lucide-react";
 
 export const SpecificationsPanel = ({
   devices,
-  estimatedCost,
-  costLabel = "Est. Monthly",
+  liveLoadKw,
+  statusLabel = "Live Active Load",
   onDetails,
 }: {
-  devices: Array<{ wattage: number; hoursPerDay: number; isOn: boolean }>;
-  estimatedCost: number;
-  costLabel?: string;
+  devices: Array<{ wattage: number; isOn: boolean }>;
+  liveLoadKw: number;
+  statusLabel?: string;
   onDetails?: () => void;
 }) => {
   const activeDevices = devices.filter((d) => d.isOn).length;
@@ -27,8 +27,8 @@ export const SpecificationsPanel = ({
       </div>
       <div className="h-8 w-px bg-border" />
       <div>
-        <p className="text-xs text-muted-foreground">{costLabel}</p>
-        <p className="text-sm font-semibold text-foreground">Rs.{estimatedCost.toFixed(2)}</p>
+        <p className="text-xs text-muted-foreground">{statusLabel}</p>
+        <p className="text-sm font-semibold text-foreground">{liveLoadKw.toFixed(2)} kW</p>
       </div>
       <Button variant="ghost" size="sm" className="ml-2" onClick={onDetails}>
         Details

@@ -33,5 +33,10 @@ export const tariffTypeDefs = gql`
       slabs: [TariffSlabInput!]!
       effectiveFrom: String!
     ): Boolean!
+    updateTariff(
+      tariffId: ID!
+      tariffType: String!
+      slabs: [TariffSlabInput!]!
+    ): Boolean!
   }
 `;

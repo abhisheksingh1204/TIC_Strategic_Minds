@@ -3,6 +3,7 @@ import {
   deleteProperty,
   getMyProperties,
   getPropertyById,
+  updateProperty,
 } from "./property.service";
 import { GraphQLContext } from "../../context";
 
@@ -10,6 +11,13 @@ interface CreatePropertyArgs {
   input: {
     propertyName: string;
     propertyType: "HOUSE" | "APARTMENT";
+  };
+}
+
+interface UpdatePropertyArgs {
+  propertyId: string;
+  input: {
+    propertyName: string;
   };
 }
 
@@ -39,6 +47,13 @@ export const propertyResolvers = {
       context: GraphQLContext
     ) => {
       return createProperty(context.userId ?? null, input);
+    },
+    updateProperty: (
+      _: unknown,
+      { propertyId, input }: UpdatePropertyArgs,
+      context: GraphQLContext
+    ) => {
+      return updateProperty(context.userId ?? null, propertyId, input);
     },
 
     deleteProperty: (

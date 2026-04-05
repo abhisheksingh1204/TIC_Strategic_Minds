@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery } from "@apollo/client/react";
 import {
@@ -28,6 +28,7 @@ import { AppShell } from "@/components/app/AppShell";
 import {
   MY_PROPERTIES_QUERY,
   CREATE_PROPERTY_MUTATION,
+  UPDATE_PROPERTY_MUTATION,
   DELETE_PROPERTY_MUTATION,
 } from "@/lib/graphql/queries/properties.queries";
 import {
@@ -67,6 +68,10 @@ type RoomsByPropertyQueryData = {
   roomsByProperty: Room[];
 };
 
+type UpdatePropertyMutationData = {
+  updateProperty: Property;
+};
+
 function PropertiesContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -74,10 +79,26 @@ function PropertiesContent() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [roomDialogOpen, setRoomDialogOpen] = useState(false);
-  const [newPropertyDialogOpen, setNewPropertyDialogOpen] = useState(
-    requestedCreatePropertyType === "HOUSE" || requestedCreatePropertyType === "APARTMENT"
-  );
+  const [newPropertyDialogOpen, setNewPropertyDialogOpen] = useState(false);
+  const [newPropertyType, setNewPropertyType] = useState<"HOUSE" | "APARTMENT" | null>(null);
+  const [newPropertyName, setNewPropertyName] = useState("");
+  const [editPropertyDialogOpen, setEditPropertyDialogOpen] = useState(false);
+  const [propertyBeingEdited, setPropertyBeingEdited] = useState<Property | null>(null);
+  const [editedPropertyName, setEditedPropertyName] = useState("");
   const [newRoomName, setNewRoomName] = useState("");
+
+  useEffect(() => {
+    if (
+      requestedCreatePropertyType === "HOUSE" ||
+      requestedCreatePropertyType === "APARTMENT"
+    ) {
+      setNewPropertyType(requestedCreatePropertyType);
+      setNewPropertyName(
+        requestedCreatePropertyType === "HOUSE" ? "My House" : "My Apartment"
+      );
+      setNewPropertyDialogOpen(true);
+    }
+  }, [requestedCreatePropertyType]);
 
   const { data: meData } = useQuery<MeQueryData>(ME_QUERY, {
     errorPolicy: "all",
@@ -91,6 +112,11 @@ function PropertiesContent() {
   const [createProperty] = useMutation(CREATE_PROPERTY_MUTATION, {
     refetchQueries: [{ query: MY_PROPERTIES_QUERY }],
   });
+  const [updatePropertyMutation, { loading: updatingProperty }] =
+    useMutation<UpdatePropertyMutationData>(UPDATE_PROPERTY_MUTATION, {
+      refetchQueries: [{ query: MY_PROPERTIES_QUERY }],
+      awaitRefetchQueries: true,
+    });
 
   const [deleteProperty, { loading: deletingProperty }] = useMutation(
     DELETE_PROPERTY_MUTATION,
@@ -128,23 +154,40 @@ function PropertiesContent() {
     property.propertyName.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleCreateProperty = async (type: "HOUSE" | "APARTMENT") => {
+  const handleCreateProperty = async () => {
+    if (!newPropertyType) {
+      toast.error("Please choose a property type");
+      return;
+    }
+
+    if (!newPropertyName.trim()) {
+      toast.error("Please enter a property name");
+      return;
+    }
+
     try {
-      const propertyName = type === "HOUSE" ? "My House" : "My Apartment";
       await createProperty({
         variables: {
           input: {
-            propertyName,
-            propertyType: type,
+            propertyName: newPropertyName.trim(),
+            propertyType: newPropertyType,
           },
         },
       });
       toast.success("Property created successfully");
       setNewPropertyDialogOpen(false);
+      setNewPropertyType(null);
+      setNewPropertyName("");
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Failed to create property";
       toast.error(message);
     }
+  };
+
+  const handleOpenNewPropertyDialog = () => {
+    setNewPropertyDialogOpen(true);
+    setNewPropertyType(null);
+    setNewPropertyName("");
   };
 
   const handleDeleteProperty = async (property: Property) => {
@@ -165,6 +208,45 @@ function PropertiesContent() {
       toast.success("Property deleted successfully");
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Failed to delete property";
+      toast.error(message);
+    }
+  };
+
+  const handleOpenEditPropertyDialog = (property: Property) => {
+    setPropertyBeingEdited(property);
+    setEditedPropertyName(property.propertyName);
+    setEditPropertyDialogOpen(true);
+  };
+
+  const handleUpdateProperty = async () => {
+    if (!propertyBeingEdited) return;
+
+    if (!editedPropertyName.trim()) {
+      toast.error("Please enter a property name");
+      return;
+    }
+
+    try {
+      const result = await updatePropertyMutation({
+        variables: {
+          propertyId: propertyBeingEdited.id,
+          input: {
+            propertyName: editedPropertyName.trim(),
+          },
+        },
+      });
+
+      const updatedProperty = result.data?.updateProperty;
+      if (updatedProperty && selectedProperty?.id === updatedProperty.id) {
+        setSelectedProperty(updatedProperty);
+      }
+
+      toast.success("Property name updated successfully");
+      setEditPropertyDialogOpen(false);
+      setPropertyBeingEdited(null);
+      setEditedPropertyName("");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to update property";
       toast.error(message);
     }
   };
@@ -216,7 +298,7 @@ function PropertiesContent() {
       current="properties"
       user={meData?.me}
       actions={
-        <Button variant="neon" size="lg" onClick={() => setNewPropertyDialogOpen(true)}>
+        <Button variant="neon" size="lg" onClick={handleOpenNewPropertyDialog}>
           <Plus className="h-4 w-4" />
           New Property
         </Button>
@@ -303,7 +385,7 @@ function PropertiesContent() {
                       <DropdownMenuItem
                         onClick={(e) => {
                           e.stopPropagation();
-                          toast.info("Edit property coming soon");
+                          handleOpenEditPropertyDialog(property);
                         }}
                       >
                         <Edit className="h-4 w-4" />
@@ -405,23 +487,39 @@ function PropertiesContent() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={newPropertyDialogOpen} onOpenChange={setNewPropertyDialogOpen}>
+      <Dialog
+        open={newPropertyDialogOpen}
+        onOpenChange={(open) => {
+          setNewPropertyDialogOpen(open);
+          if (!open) {
+            setNewPropertyType(null);
+            setNewPropertyName("");
+          }
+        }}
+      >
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Create New Property</DialogTitle>
           </DialogHeader>
 
           <p className="mb-2 text-sm text-slate-400">
-            Choose the type of property you want to create.
+            Choose the property type, then enter a name before creating it.
           </p>
 
           <div className="grid grid-cols-2 gap-4">
             <button
               type="button"
               onClick={() => {
-                void handleCreateProperty("HOUSE");
+                setNewPropertyType("HOUSE");
+                if (!newPropertyName.trim()) {
+                  setNewPropertyName("My House");
+                }
               }}
-              className="app-card-hover rounded-[1.4rem] border border-white/6 bg-white/[0.03] p-6 text-center"
+              className={`app-card-hover rounded-[1.4rem] border p-6 text-center ${
+                newPropertyType === "HOUSE"
+                  ? "border-cyan-300/40 bg-cyan-400/10"
+                  : "border-white/6 bg-white/[0.03]"
+              }`}
             >
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[1.2rem] bg-cyan-400/10 text-cyan-300">
                 <House className="h-8 w-8" />
@@ -433,9 +531,16 @@ function PropertiesContent() {
             <button
               type="button"
               onClick={() => {
-                void handleCreateProperty("APARTMENT");
+                setNewPropertyType("APARTMENT");
+                if (!newPropertyName.trim() || newPropertyName.trim() === "My House") {
+                  setNewPropertyName("My Apartment");
+                }
               }}
-              className="app-card-hover rounded-[1.4rem] border border-white/6 bg-white/[0.03] p-6 text-center"
+              className={`app-card-hover rounded-[1.4rem] border p-6 text-center ${
+                newPropertyType === "APARTMENT"
+                  ? "border-lime-300/40 bg-lime-400/10"
+                  : "border-white/6 bg-white/[0.03]"
+              }`}
             >
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[1.2rem] bg-lime-400/10 text-lime-300">
                 <Building2 className="h-8 w-8" />
@@ -443,6 +548,92 @@ function PropertiesContent() {
               <h3 className="mt-4 font-semibold text-white">Apartment</h3>
               <p className="mt-1 text-xs text-slate-400">Flat or studio layout</p>
             </button>
+          </div>
+
+          <div className="mt-5 space-y-2">
+            <label className="text-sm font-medium text-foreground">
+              {newPropertyType === "HOUSE"
+                ? "House Name"
+                : newPropertyType === "APARTMENT"
+                  ? "Apartment Name"
+                  : "Property Name"}
+            </label>
+            <Input
+              value={newPropertyName}
+              disabled={!newPropertyType}
+              onChange={(e) => setNewPropertyName(e.target.value)}
+              placeholder={
+                newPropertyType === "HOUSE"
+                  ? "Enter house name"
+                  : newPropertyType === "APARTMENT"
+                    ? "Enter apartment name"
+                    : "Select a property type first"
+              }
+            />
+          </div>
+
+          <div className="mt-5 flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setNewPropertyDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="neon" onClick={() => void handleCreateProperty()}>
+              Create Property
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={editPropertyDialogOpen}
+        onOpenChange={(open) => {
+          setEditPropertyDialogOpen(open);
+          if (!open) {
+            setPropertyBeingEdited(null);
+            setEditedPropertyName("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Property</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Property Type</label>
+              <Input
+                value={
+                  propertyBeingEdited?.propertyType === "HOUSE"
+                    ? "House"
+                    : propertyBeingEdited?.propertyType === "APARTMENT"
+                      ? "Apartment"
+                      : ""
+                }
+                disabled
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Property Name</label>
+              <Input
+                value={editedPropertyName}
+                onChange={(e) => setEditedPropertyName(e.target.value)}
+                placeholder="Enter property name"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => setEditPropertyDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="neon"
+                onClick={() => void handleUpdateProperty()}
+                disabled={updatingProperty}
+              >
+                {updatingProperty ? "Saving..." : "Save Changes"}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

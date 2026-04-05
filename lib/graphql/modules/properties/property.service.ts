@@ -22,15 +22,20 @@ export const createProperty = async (
   }
 
   const propertyName = input.propertyName.trim();
+  const propertyType = input.propertyType;
 
   if (!propertyName) {
     throw new GraphQLError("Property name is required");
   }
 
+  if (propertyType !== "HOUSE" && propertyType !== "APARTMENT") {
+    throw new GraphQLError("Valid property type is required");
+  }
+
   const property = await Property.create({
     userId: new Types.ObjectId(userId),
     propertyName,
-    propertyType: input.propertyType,
+    propertyType,
   });
 
   return property;

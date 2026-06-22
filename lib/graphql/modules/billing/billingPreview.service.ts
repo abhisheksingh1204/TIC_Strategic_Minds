@@ -7,6 +7,11 @@ import Room from "@/models/Room.model";
 import Tariff from "@/models/Tariff.model";
 import UsageSession from "@/models/UsageSession.model";
 import { getDayRange, parseDateInput } from "@/lib/date";
+import {
+  calculateProjectedEquipmentKwh,
+  calculateTariffAmount,
+  roundBillingValue,
+} from "@/lib/billing-calculation";
 
 type EquipmentBreakdown = {
   equipmentId: string;
@@ -21,7 +26,6 @@ type BillPreview = {
   breakdown: EquipmentBreakdown[];
 };
 
-const DEFAULT_PRICE_PER_UNIT = 5;
 const DEVICE_NAME_BY_CATALOG_ID: Record<string, string> = {
   "000000000000000000000001": "Refrigerator",
   "000000000000000000000002": "AC",
@@ -43,7 +47,7 @@ const createEmptyPreview = (): BillPreview => ({
   breakdown: [],
 });
 
-const roundValue = (value: number) => Number(value.toFixed(2));
+const roundValue = roundBillingValue;
 const toObjectIdIfValid = (value: unknown) => {
   const stringValue = String(value ?? "");
   return Types.ObjectId.isValid(stringValue) ? new Types.ObjectId(stringValue) : null;
@@ -100,7 +104,7 @@ export class BillingPreviewService {
     const roomIds = await Room.find({ propertyId: propertyObjectId }).distinct("_id");
     const equipmentIds = await Equipment.find({ roomId: { $in: roomIds } }).distinct("_id");
 
-    const [propertyAggregateRows, equipmentAggregateRows, tariff] = await Promise.all([
+    const [propertyAggregateRows, equipmentAggregateRows, tariff, equipmentDocs] = await Promise.all([
       EnergyAggregate.aggregate<{ totalKwh: number }>([
         {
           $match: {
@@ -138,34 +142,62 @@ export class BillingPreviewService {
       Tariff.findOne({
         $or: [{ propertyId: propertyObjectId }, { property_id: propertyObjectId }],
       }).sort({ effectiveFrom: -1 }),
+      Equipment.find({ _id: { $in: equipmentIds } })
+        .select(
+          "_id catalogId ratedPowerWatt hoursPerDay isOn quantity efficiencyFactor"
+        )
+        .lean<
+          {
+            _id: Types.ObjectId;
+            catalogId?: Types.ObjectId | null;
+            ratedPowerWatt?: number;
+            hoursPerDay?: number;
+            isOn?: boolean;
+            quantity?: number;
+            efficiencyFactor?: number;
+          }[]
+        >(),
     ]);
 
-    const equipmentTotalKwh = roundValue(
+    const aggregateEquipmentTotalKwh = roundValue(
       equipmentAggregateRows.reduce((sum, row) => sum + (row.totalKwh ?? 0), 0)
     );
-    const totalKwh = roundValue(
-      propertyAggregateRows[0]?.totalKwh ?? equipmentTotalKwh
+    const propertyAggregateTotalKwh = roundValue(
+      propertyAggregateRows[0]?.totalKwh ?? 0
     );
-    const pricePerUnit = tariff?.slabs?.[0]?.pricePerUnit || DEFAULT_PRICE_PER_UNIT;
+    const billingDays = Math.max(
+      1,
+      Math.round(
+        (new Date(toDateValue).setHours(0, 0, 0, 0) -
+          new Date(fromDate).setHours(0, 0, 0, 0)) /
+          (24 * 60 * 60 * 1000)
+      ) + 1
+    );
+    const projectedEquipmentRows = equipmentDocs
+      .map((equipment) => ({
+        _id: equipment._id,
+        totalKwh: roundValue(
+          calculateProjectedEquipmentKwh(equipment, billingDays)
+        ),
+      }))
+      .filter((row) => row.totalKwh > 0);
+    const useProjectedUsage =
+      propertyAggregateTotalKwh <= 0 && aggregateEquipmentTotalKwh <= 0;
+    const billingEquipmentRows = useProjectedUsage
+      ? projectedEquipmentRows
+      : equipmentAggregateRows;
+    const equipmentTotalKwh = roundValue(
+      billingEquipmentRows.reduce((sum, row) => sum + (row.totalKwh ?? 0), 0)
+    );
+    const totalKwh = roundValue(
+      propertyAggregateTotalKwh > 0 ? propertyAggregateTotalKwh : equipmentTotalKwh
+    );
+    const totalAmount = calculateTariffAmount(totalKwh, tariff);
 
-    if (equipmentAggregateRows.length === 0) {
-      return {
-        totalKwh,
-        totalAmount: roundValue(totalKwh * pricePerUnit),
-        breakdown: [],
-      };
-    }
-
-    const aggregateEquipmentIds = equipmentAggregateRows.map((row) => row._id.toString());
+    const aggregateEquipmentIds = billingEquipmentRows.map((row) => row._id.toString());
     const aggregateEquipmentObjectIds = aggregateEquipmentIds
       .map((equipmentId) => toObjectIdIfValid(equipmentId))
       .filter((equipmentId): equipmentId is Types.ObjectId => Boolean(equipmentId));
-
-    const equipmentDocs = await Equipment.find({
-      _id: { $in: aggregateEquipmentObjectIds },
-    })
-      .select("_id catalogId")
-      .lean<{ _id: Types.ObjectId; catalogId?: Types.ObjectId | null }[]>();
 
     const catalogIds = equipmentDocs
       .map((equipment) => equipment.catalogId)
@@ -216,7 +248,7 @@ export class BillingPreviewService {
       }
     }
 
-    const breakdown = equipmentAggregateRows
+    const breakdown = billingEquipmentRows
       .map((row) => {
         const equipmentId = row._id.toString();
         const equipment = equipmentById.get(equipmentId);
@@ -235,15 +267,29 @@ export class BillingPreviewService {
           equipmentId,
           equipmentName,
           kwh,
-          amount: roundValue(kwh * pricePerUnit),
+          amount:
+            totalKwh > 0
+              ? roundValue((kwh / totalKwh) * totalAmount)
+              : 0,
         };
       })
       .filter((item) => item.kwh > 0)
       .sort((left, right) => right.kwh - left.kwh);
 
+    const allocatedAmount = roundValue(
+      breakdown.reduce((sum, item) => sum + item.amount, 0)
+    );
+    const roundingDifference = roundValue(totalAmount - allocatedAmount);
+
+    if (breakdown.length > 0 && roundingDifference !== 0) {
+      breakdown[breakdown.length - 1].amount = roundValue(
+        breakdown[breakdown.length - 1].amount + roundingDifference
+      );
+    }
+
     return {
       totalKwh,
-      totalAmount: roundValue(totalKwh * pricePerUnit),
+      totalAmount,
       breakdown,
     };
   }

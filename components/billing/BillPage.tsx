@@ -332,50 +332,50 @@ function BillReportDialog({
           </div>
         </DialogHeader>
 
-        <ScrollArea className="mt-6 max-h-[70vh] pr-4">
+        <ScrollArea className="mt-6 max-h-[70vh] max-w-full overflow-x-hidden pr-4">
           {loading ? (
             <div className="rounded-xl border border-border bg-secondary/10 p-6 text-sm text-muted-foreground">
               Loading bill report...
             </div>
           ) : (
             <div className="space-y-6 text-sm">
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <div className="rounded-md border border-border p-4">
+              <div className="grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))]">
+                <div className="min-w-0 rounded-md border border-border p-4">
                   <p className="text-xs text-muted-foreground">Property</p>
-                  <p className="mt-1 font-medium text-foreground">{propertyName}</p>
+                  <p className="mt-1 break-words font-medium text-foreground">{propertyName}</p>
                 </div>
-                <div className="rounded-md border border-border p-4">
+                <div className="min-w-0 rounded-md border border-border p-4">
                   <p className="text-xs text-muted-foreground">Billing Range</p>
                   <p className="mt-1 font-medium text-foreground">
                     {formatDateLabel(periodStart)} - {formatDateLabel(periodEnd)}
                   </p>
                 </div>
-                <div className="rounded-md border border-border p-4">
+                <div className="min-w-0 rounded-md border border-border p-4">
                   <p className="text-xs text-muted-foreground">Generated</p>
                   <p className="mt-1 font-medium text-foreground">{generatedAt}</p>
                 </div>
-                <div className="rounded-md border border-border p-4">
+                <div className="min-w-0 rounded-md border border-border p-4">
                   <p className="text-xs text-muted-foreground">Device Count</p>
                   <p className="mt-1 font-medium text-foreground">{breakdown.length}</p>
                 </div>
               </div>
 
-              <div className="grid gap-3 md:grid-cols-3">
-                <div className="rounded-md border border-border p-4">
+              <div className="grid min-w-0 gap-3 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1.15fr)_minmax(0,1.2fr)]">
+                <div className="min-w-0 overflow-hidden rounded-md border border-border p-3">
                   <p className="text-xs text-muted-foreground">Total Usage</p>
-                  <p className="mt-1 text-lg font-semibold text-foreground">
+                  <p className="mt-1 whitespace-nowrap text-xs font-semibold tabular-nums text-foreground">
                     {totalKwh.toFixed(2)} kWh
                   </p>
                 </div>
-                <div className="rounded-md border border-border p-4">
+                <div className="min-w-0 overflow-hidden rounded-md border border-border p-3">
                   <p className="text-xs text-muted-foreground">Total Bill</p>
-                  <p className="mt-1 text-lg font-semibold text-accent">
+                  <p className="mt-1 whitespace-nowrap text-xs font-semibold tabular-nums text-accent">
                     {formatCurrency(totalAmount)}
                   </p>
                 </div>
-                <div className="rounded-md border border-border p-4">
+                <div className="min-w-0 overflow-hidden rounded-md border border-border p-3">
                   <p className="text-xs text-muted-foreground">Projected Annual Cost</p>
-                  <p className="mt-1 text-lg font-semibold text-foreground">
+                  <p className="mt-1 whitespace-nowrap text-xs font-semibold tabular-nums text-foreground">
                     {formatCurrency(totalAmount * 12)}
                   </p>
                 </div>
@@ -388,14 +388,16 @@ function BillReportDialog({
               ) : null}
 
               <div className="rounded-lg border border-border p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
+                <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                  <div className="min-w-0">
                     <h3 className="text-sm font-semibold text-foreground">Top Consumers</h3>
                     <p className="text-xs text-muted-foreground">
                       Ranked by usage within this billing range
                     </p>
                   </div>
-                  <p className="text-sm font-medium text-foreground">{totalKwh.toFixed(2)} kWh</p>
+                  <p className="[overflow-wrap:anywhere] text-sm font-medium text-foreground sm:text-right">
+                    {totalKwh.toFixed(2)} kWh
+                  </p>
                 </div>
 
                 <div className="mt-4 space-y-3">
@@ -408,17 +410,17 @@ function BillReportDialog({
                       return (
                         <div
                           key={`${item.equipmentId}-${item.equipmentName}-top`}
-                          className="flex items-center justify-between rounded-md border border-border/70 px-3 py-2"
+                          className="flex min-w-0 flex-col gap-2 rounded-md border border-border/70 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
                         >
-                          <div>
-                            <p className="font-medium text-foreground">{item.equipmentName}</p>
+                          <div className="min-w-0">
+                            <p className="truncate font-medium text-foreground">{item.equipmentName}</p>
                             <p className="text-xs text-muted-foreground">
                               {formatEquipmentId(item.equipmentId)} • {contribution.toFixed(1)}%
                             </p>
                           </div>
-                          <div className="text-right">
-                            <p className="font-semibold text-foreground">{item.kwh.toFixed(2)} kWh</p>
-                            <p className="text-xs text-accent">{formatCurrency(item.amount)}</p>
+                          <div className="min-w-0 sm:text-right">
+                            <p className="[overflow-wrap:anywhere] font-semibold text-foreground">{item.kwh.toFixed(2)} kWh</p>
+                            <p className="[overflow-wrap:anywhere] text-xs text-accent">{formatCurrency(item.amount)}</p>
                           </div>
                         </div>
                       );
@@ -428,7 +430,7 @@ function BillReportDialog({
               </div>
 
               <div className="rounded-lg overflow-hidden border border-border">
-                <div className="grid grid-cols-[minmax(0,1.8fr)_120px_130px_120px] gap-3 border-b border-border bg-secondary/30 px-4 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                <div className="grid grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)_minmax(0,1.15fr)_minmax(0,0.65fr)] gap-3 border-b border-border bg-secondary/30 px-4 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   <span>Device</span>
                   <span className="text-right">Usage</span>
                   <span className="text-right">Amount</span>
@@ -446,7 +448,7 @@ function BillReportDialog({
                     return (
                       <div
                         key={`${item.equipmentId}-${item.equipmentName}-row`}
-                        className="grid grid-cols-[minmax(0,1.8fr)_120px_130px_120px] gap-3 border-b border-border/70 px-4 py-3 text-sm last:border-b-0"
+                        className="grid grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)_minmax(0,1.15fr)_minmax(0,0.65fr)] gap-3 border-b border-border/70 px-4 py-3 text-xs last:border-b-0 sm:text-sm"
                       >
                         <div className="min-w-0">
                           <p className="truncate font-medium text-foreground">{item.equipmentName}</p>
@@ -454,9 +456,9 @@ function BillReportDialog({
                             {formatEquipmentId(item.equipmentId)}
                           </p>
                         </div>
-                        <span className="text-right text-foreground">{item.kwh.toFixed(2)} kWh</span>
-                        <span className="text-right text-foreground">{formatCurrency(item.amount)}</span>
-                        <span className="text-right text-muted-foreground">
+                        <span className="min-w-0 [overflow-wrap:anywhere] text-right text-foreground">{item.kwh.toFixed(2)} kWh</span>
+                        <span className="min-w-0 [overflow-wrap:anywhere] text-right text-foreground">{formatCurrency(item.amount)}</span>
+                        <span className="min-w-0 [overflow-wrap:anywhere] text-right text-muted-foreground">
                           {contribution.toFixed(1)}%
                         </span>
                       </div>
@@ -727,18 +729,21 @@ export function BillPage() {
     setLatestBillId(null);
   };
 
-  const handleGenerateBill = async () => {
+  const handleGenerateBill = async (range?: { from: string; to: string }) => {
+    const billFrom = range?.from ?? fromDate;
+    const billTo = range?.to ?? toDate;
+
     if (!effectiveSelectedPropertyId) {
       toast.error("Select a property first");
       return;
     }
 
-    if (!fromDate || !toDate) {
+    if (!billFrom || !billTo) {
       toast.error("Select a valid date range");
       return;
     }
 
-    if (fromDate > toDate) {
+    if (billFrom > billTo) {
       toast.error("From date must be before To date");
       return;
     }
@@ -747,8 +752,8 @@ export function BillPage() {
       const result = await generateBill({
         variables: {
           propertyId: effectiveSelectedPropertyId,
-          from: fromDate,
-          to: toDate,
+          from: billFrom,
+          to: billTo,
         },
       });
 
@@ -774,8 +779,8 @@ export function BillPage() {
       const refreshedPreview = await getBillPreview({
         variables: {
           propertyId: effectiveSelectedPropertyId,
-          from: fromDate,
-          to: toDate,
+          from: billFrom,
+          to: billTo,
         },
       });
       setPreviewResult(normalizeBillPreview(refreshedPreview.data?.getBillPreview));
@@ -1074,6 +1079,12 @@ export function BillPage() {
           toDate={toDate}
           onFromDateChange={setFromDate}
           onToDateChange={setToDate}
+          onGenerate={(from, to) => {
+            setFromDate(from);
+            setToDate(to);
+            void handleGenerateBill({ from, to });
+          }}
+          generating={generatingBill}
         />
       ) : null}
 

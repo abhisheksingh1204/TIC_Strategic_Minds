@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, PlusCircle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -143,6 +143,8 @@ export function BillingPeriodDialog({
   toDate,
   onFromDateChange,
   onToDateChange,
+  onGenerate,
+  generating = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -150,6 +152,8 @@ export function BillingPeriodDialog({
   toDate: string;
   onFromDateChange: (value: string) => void;
   onToDateChange: (value: string) => void;
+  onGenerate: (from: string, to: string) => void;
+  generating?: boolean;
 }) {
   const [fromMonth, setFromMonth] = useState(() => monthStart(parseDate(fromDate)));
   const [toMonth, setToMonth] = useState(() => monthStart(parseDate(toDate)));
@@ -166,7 +170,11 @@ export function BillingPeriodDialog({
   const handleToSelect = (value: string) => {
     if (value < fromDate) return;
     onToDateChange(value);
+  };
+
+  const handleGenerate = () => {
     onOpenChange(false);
+    onGenerate(fromDate, toDate);
   };
 
   return (
@@ -224,6 +232,18 @@ export function BillingPeriodDialog({
             onMonthChange={setToMonth}
             onSelect={handleToSelect}
           />
+        </div>
+
+        <div className="mt-5 flex justify-end border-t border-border pt-5">
+          <Button
+            type="button"
+            variant="neon"
+            onClick={handleGenerate}
+            disabled={generating || !fromDate || !toDate || fromDate > toDate}
+          >
+            <PlusCircle className="h-4 w-4" />
+            {generating ? "Generating..." : "Generate Bill"}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

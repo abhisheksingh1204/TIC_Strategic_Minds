@@ -49,7 +49,7 @@ export const Select = ({
     <SelectContext.Provider
       value={{ value, onValueChange, open, setOpen, registerItem, items }}
     >
-      <div className="relative inline-block">{children}</div>
+      <div className="relative inline-flex max-w-full">{children}</div>
     </SelectContext.Provider>
   );
 };
@@ -64,10 +64,12 @@ export const SelectTrigger = React.forwardRef<
       ref={ref}
       type="button"
       className={cx(
-        "flex h-12 w-full items-center justify-between rounded-2xl border border-border bg-card/70 px-4 text-sm text-foreground backdrop-blur-xl",
+        "flex h-12 min-w-40 max-w-full items-center justify-between rounded-2xl border border-border bg-card/70 px-4 text-sm text-foreground backdrop-blur-xl",
         className
       )}
       onClick={() => ctx.setOpen(!ctx.open)}
+      aria-expanded={ctx.open}
+      aria-haspopup="listbox"
       {...props}
     >
       {children}
@@ -106,9 +108,10 @@ export const SelectContent = ({
   return (
     <div
       className={cx(
-        "absolute z-50 mt-2 w-full rounded-2xl border border-white/12 bg-[rgba(9,16,29,0.98)] p-2 shadow-2xl backdrop-blur-2xl",
+        "absolute right-0 top-full z-50 mt-2 max-h-72 w-max min-w-full max-w-[min(20rem,calc(100vw-2rem))] overflow-y-auto overflow-x-hidden rounded-2xl border border-white/12 bg-[rgba(9,16,29,0.98)] p-2 shadow-2xl backdrop-blur-2xl",
         className
       )}
+      role="listbox"
     >
       {children}
     </div>
@@ -144,11 +147,14 @@ export const SelectItem = ({
         ctx.setOpen(false);
       }}
       className={cx(
-        "flex w-full items-center rounded-xl px-3 py-2 text-left text-sm text-foreground hover:bg-white/5",
+        "flex w-full min-w-0 items-center overflow-hidden rounded-xl px-3 py-2 text-left text-sm text-foreground hover:bg-white/5",
         className
       )}
+      role="option"
+      aria-selected={ctx.value === value}
+      title={label || undefined}
     >
-      {children}
+      <span className="min-w-0 flex-1 truncate">{children}</span>
     </button>
   );
 };

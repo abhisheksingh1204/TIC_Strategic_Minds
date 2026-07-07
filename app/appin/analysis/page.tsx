@@ -41,6 +41,11 @@ import {
   USAGE_SESSIONS_QUERY,
 } from "@/lib/graphql/queries/analysis.queries";
 import { toast } from "sonner";
+import {
+  calculateProjectedEquipmentKwh,
+  DAYS_PER_MONTH,
+  DEFAULT_RATE_PER_KWH,
+} from "@/lib/billing-calculation";
 
 type PropertyRecord = {
   id: string;
@@ -124,9 +129,7 @@ type UsageSessionsQueryData = {
   usageSessions: UsageSessionRecord[];
 };
 
-const ASSUMED_HOURS_PER_DAY = 4;
-const DAYS_PER_MONTH = 30;
-const RATE_PER_KWH = 8;
+const RATE_PER_KWH = DEFAULT_RATE_PER_KWH;
 const LIVE_POLL_INTERVAL_MS = 10000;
 
 const formatUsageValue = (value: number) => {
@@ -336,14 +339,7 @@ export default function Analysis() {
     new Date(session.endedAt ?? session.startedAt);
 
   const monthlyKwhForEquipment = (equipment: Equipment) => {
-    if (!equipment.isOn) return 0;
-    const effectiveWatt =
-      (equipment.ratedPowerWatt || 0) *
-      (equipment.quantity || 1) *
-      (equipment.efficiencyFactor || 1);
-    const hoursPerDay =
-      typeof equipment.hoursPerDay === "number" ? equipment.hoursPerDay : ASSUMED_HOURS_PER_DAY;
-    return (effectiveWatt * hoursPerDay * DAYS_PER_MONTH) / 1000;
+    return calculateProjectedEquipmentKwh(equipment, DAYS_PER_MONTH);
   };
 
   const activeQuantityForEquipment = (equipment: Equipment) =>

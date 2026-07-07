@@ -13,6 +13,7 @@ import { AggregationService } from "../aggregation/aggregation.service";
 import { BillingPreviewService } from "./billingPreview.service";
 import { BillingSettingsService } from "./billingSettings.service";
 import { CostService } from "../cost/cost.service";
+import { DEFAULT_RATE_PER_KWH } from "@/lib/billing-calculation";
 
 type TariffType = "FLAT" | "SLAB";
 
@@ -308,7 +309,7 @@ export class BillingService {
       tariff = await Tariff.create({
         propertyId: propertyObjectId,
         tariffType: "FLAT",
-        slabs: [{ pricePerUnit: 5 }],
+        slabs: [{ pricePerUnit: DEFAULT_RATE_PER_KWH }],
         effectiveFrom: billingRange.start,
       });
     }

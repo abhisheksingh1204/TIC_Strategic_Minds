@@ -2,11 +2,18 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useLazyQuery, useMutation, useQuery } from "@apollo/client/react";
-import { AlertTriangle, CalendarRange, FileText, PlusCircle } from "lucide-react";
+import {
+  AlertTriangle,
+  CalendarRange,
+  ChevronDown,
+  FileText,
+  PlusCircle,
+} from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/app/AppShell";
 import { BillDetail } from "@/components/billing/BillDetail";
 import { BillList } from "@/components/billing/BillList";
+import { BillingPeriodDialog } from "@/components/billing/BillingPeriodDialog";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -325,50 +332,50 @@ function BillReportDialog({
           </div>
         </DialogHeader>
 
-        <ScrollArea className="mt-6 max-h-[70vh] pr-4">
+        <ScrollArea className="mt-6 max-h-[70vh] max-w-full overflow-x-hidden pr-4">
           {loading ? (
             <div className="rounded-xl border border-border bg-secondary/10 p-6 text-sm text-muted-foreground">
               Loading bill report...
             </div>
           ) : (
             <div className="space-y-6 text-sm">
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <div className="rounded-md border border-border p-4">
+              <div className="grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))]">
+                <div className="min-w-0 rounded-md border border-border p-4">
                   <p className="text-xs text-muted-foreground">Property</p>
-                  <p className="mt-1 font-medium text-foreground">{propertyName}</p>
+                  <p className="mt-1 break-words font-medium text-foreground">{propertyName}</p>
                 </div>
-                <div className="rounded-md border border-border p-4">
+                <div className="min-w-0 rounded-md border border-border p-4">
                   <p className="text-xs text-muted-foreground">Billing Range</p>
                   <p className="mt-1 font-medium text-foreground">
                     {formatDateLabel(periodStart)} - {formatDateLabel(periodEnd)}
                   </p>
                 </div>
-                <div className="rounded-md border border-border p-4">
+                <div className="min-w-0 rounded-md border border-border p-4">
                   <p className="text-xs text-muted-foreground">Generated</p>
                   <p className="mt-1 font-medium text-foreground">{generatedAt}</p>
                 </div>
-                <div className="rounded-md border border-border p-4">
+                <div className="min-w-0 rounded-md border border-border p-4">
                   <p className="text-xs text-muted-foreground">Device Count</p>
                   <p className="mt-1 font-medium text-foreground">{breakdown.length}</p>
                 </div>
               </div>
 
-              <div className="grid gap-3 md:grid-cols-3">
-                <div className="rounded-md border border-border p-4">
+              <div className="grid min-w-0 gap-3 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1.15fr)_minmax(0,1.2fr)]">
+                <div className="min-w-0 overflow-hidden rounded-md border border-border p-3">
                   <p className="text-xs text-muted-foreground">Total Usage</p>
-                  <p className="mt-1 text-lg font-semibold text-foreground">
+                  <p className="mt-1 whitespace-nowrap text-xs font-semibold tabular-nums text-foreground">
                     {totalKwh.toFixed(2)} kWh
                   </p>
                 </div>
-                <div className="rounded-md border border-border p-4">
+                <div className="min-w-0 overflow-hidden rounded-md border border-border p-3">
                   <p className="text-xs text-muted-foreground">Total Bill</p>
-                  <p className="mt-1 text-lg font-semibold text-accent">
+                  <p className="mt-1 whitespace-nowrap text-xs font-semibold tabular-nums text-accent">
                     {formatCurrency(totalAmount)}
                   </p>
                 </div>
-                <div className="rounded-md border border-border p-4">
+                <div className="min-w-0 overflow-hidden rounded-md border border-border p-3">
                   <p className="text-xs text-muted-foreground">Projected Annual Cost</p>
-                  <p className="mt-1 text-lg font-semibold text-foreground">
+                  <p className="mt-1 whitespace-nowrap text-xs font-semibold tabular-nums text-foreground">
                     {formatCurrency(totalAmount * 12)}
                   </p>
                 </div>
@@ -381,14 +388,16 @@ function BillReportDialog({
               ) : null}
 
               <div className="rounded-lg border border-border p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
+                <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                  <div className="min-w-0">
                     <h3 className="text-sm font-semibold text-foreground">Top Consumers</h3>
                     <p className="text-xs text-muted-foreground">
                       Ranked by usage within this billing range
                     </p>
                   </div>
-                  <p className="text-sm font-medium text-foreground">{totalKwh.toFixed(2)} kWh</p>
+                  <p className="[overflow-wrap:anywhere] text-sm font-medium text-foreground sm:text-right">
+                    {totalKwh.toFixed(2)} kWh
+                  </p>
                 </div>
 
                 <div className="mt-4 space-y-3">
@@ -401,17 +410,17 @@ function BillReportDialog({
                       return (
                         <div
                           key={`${item.equipmentId}-${item.equipmentName}-top`}
-                          className="flex items-center justify-between rounded-md border border-border/70 px-3 py-2"
+                          className="flex min-w-0 flex-col gap-2 rounded-md border border-border/70 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
                         >
-                          <div>
-                            <p className="font-medium text-foreground">{item.equipmentName}</p>
+                          <div className="min-w-0">
+                            <p className="truncate font-medium text-foreground">{item.equipmentName}</p>
                             <p className="text-xs text-muted-foreground">
                               {formatEquipmentId(item.equipmentId)} • {contribution.toFixed(1)}%
                             </p>
                           </div>
-                          <div className="text-right">
-                            <p className="font-semibold text-foreground">{item.kwh.toFixed(2)} kWh</p>
-                            <p className="text-xs text-accent">{formatCurrency(item.amount)}</p>
+                          <div className="min-w-0 sm:text-right">
+                            <p className="[overflow-wrap:anywhere] font-semibold text-foreground">{item.kwh.toFixed(2)} kWh</p>
+                            <p className="[overflow-wrap:anywhere] text-xs text-accent">{formatCurrency(item.amount)}</p>
                           </div>
                         </div>
                       );
@@ -421,7 +430,7 @@ function BillReportDialog({
               </div>
 
               <div className="rounded-lg overflow-hidden border border-border">
-                <div className="grid grid-cols-[minmax(0,1.8fr)_120px_130px_120px] gap-3 border-b border-border bg-secondary/30 px-4 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                <div className="grid grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)_minmax(0,1.15fr)_minmax(0,0.65fr)] gap-3 border-b border-border bg-secondary/30 px-4 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   <span>Device</span>
                   <span className="text-right">Usage</span>
                   <span className="text-right">Amount</span>
@@ -439,7 +448,7 @@ function BillReportDialog({
                     return (
                       <div
                         key={`${item.equipmentId}-${item.equipmentName}-row`}
-                        className="grid grid-cols-[minmax(0,1.8fr)_120px_130px_120px] gap-3 border-b border-border/70 px-4 py-3 text-sm last:border-b-0"
+                        className="grid grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)_minmax(0,1.15fr)_minmax(0,0.65fr)] gap-3 border-b border-border/70 px-4 py-3 text-xs last:border-b-0 sm:text-sm"
                       >
                         <div className="min-w-0">
                           <p className="truncate font-medium text-foreground">{item.equipmentName}</p>
@@ -447,9 +456,9 @@ function BillReportDialog({
                             {formatEquipmentId(item.equipmentId)}
                           </p>
                         </div>
-                        <span className="text-right text-foreground">{item.kwh.toFixed(2)} kWh</span>
-                        <span className="text-right text-foreground">{formatCurrency(item.amount)}</span>
-                        <span className="text-right text-muted-foreground">
+                        <span className="min-w-0 [overflow-wrap:anywhere] text-right text-foreground">{item.kwh.toFixed(2)} kWh</span>
+                        <span className="min-w-0 [overflow-wrap:anywhere] text-right text-foreground">{formatCurrency(item.amount)}</span>
+                        <span className="min-w-0 [overflow-wrap:anywhere] text-right text-muted-foreground">
                           {contribution.toFixed(1)}%
                         </span>
                       </div>
@@ -482,6 +491,8 @@ export function BillPage() {
   const [previewResult, setPreviewResult] = useState<BillPreviewRecord | null>(null);
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
   const [latestBillDialogOpen, setLatestBillDialogOpen] = useState(false);
+  const [alertSettingsOpen, setAlertSettingsOpen] = useState(false);
+  const [billingPeriodOpen, setBillingPeriodOpen] = useState(false);
 
   const { data: meData } = useQuery<MeQueryData>(ME_QUERY, {
     errorPolicy: "all",
@@ -537,6 +548,7 @@ export function BillPage() {
     data: billDetailData,
     loading: billDetailLoading,
     error: billDetailError,
+    refetch: refetchBillDetail,
   } = useQuery<GetBillByIdQueryData>(GET_BILL_BY_ID_QUERY, {
     variables: { billId: effectiveSelectedBillId },
     skip: !effectiveSelectedBillId,
@@ -547,6 +559,39 @@ export function BillPage() {
     () => normalizeBillDetail(billDetailData?.getBillById),
     [billDetailData]
   );
+
+  const displayedBill: BillDetailRecord | null = useMemo(() => {
+    const selectedBillHasUsage = Boolean(
+      selectedBill && (selectedBill.totalKwh > 0 || selectedBill.totalAmount > 0)
+    );
+
+    if (selectedBillHasUsage || !previewResult || !effectiveSelectedPropertyId) {
+      return selectedBill;
+    }
+
+    const now = new Date().toISOString();
+
+    return {
+      id: selectedBill?.id ?? "current-estimate",
+      propertyId: effectiveSelectedPropertyId,
+      periodStart: fromDate,
+      periodEnd: toDate,
+      totalKwh: previewResult.totalKwh,
+      totalAmount: previewResult.totalAmount,
+      createdAt: selectedBill?.createdAt ?? now,
+      updatedAt: now,
+      lineItems: previewResult.breakdown.map((item, index) => ({
+        ...item,
+        id: item.id || `${item.equipmentId}-${index}`,
+      })),
+    };
+  }, [
+    effectiveSelectedPropertyId,
+    fromDate,
+    previewResult,
+    selectedBill,
+    toDate,
+  ]);
 
   const [generateBill, { loading: generatingBill }] =
     useMutation<GenerateBillMutationData>(GENERATE_BILL_MUTATION);
@@ -585,8 +630,36 @@ export function BillPage() {
   }, [billingLimit]);
 
   useEffect(() => {
-    setPreviewResult(null);
-  }, [effectiveSelectedPropertyId, fromDate, toDate]);
+    let cancelled = false;
+
+    if (!effectiveSelectedPropertyId || !fromDate || !toDate || fromDate > toDate) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    void getBillPreview({
+      variables: {
+        propertyId: effectiveSelectedPropertyId,
+        from: fromDate,
+        to: toDate,
+      },
+    })
+      .then((result) => {
+        if (!cancelled) {
+          setPreviewResult(normalizeBillPreview(result.data?.getBillPreview));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPreviewResult(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [effectiveSelectedPropertyId, fromDate, getBillPreview, toDate]);
 
   useEffect(() => {
     if (!latestBillId || bills.some((bill) => bill.id === latestBillId)) {
@@ -610,6 +683,7 @@ export function BillPage() {
   const {
     data: latestBillDetailData,
     loading: latestBillDetailLoading,
+    refetch: refetchLatestBillDetail,
   } = useQuery<GetBillByIdQueryData>(GET_BILL_BY_ID_QUERY, {
     variables: { billId: latestBill?.id },
     skip: !latestBill?.id,
@@ -623,11 +697,13 @@ export function BillPage() {
     latestBill && (latestBill.totalAmount > 0 || latestBill.totalKwh > 0)
   );
   const latestAlertValue =
-    latestBill == null
-      ? null
-      : billingLimit?.alertType === "COST"
-        ? latestBill.totalAmount
-        : latestBill.totalKwh;
+    billingLimit?.alertType === "COST"
+      ? latestBillHasUsage
+        ? latestBill?.totalAmount
+        : previewResult?.totalAmount
+      : latestBillHasUsage
+        ? latestBill?.totalKwh
+        : previewResult?.totalKwh;
   const dailyLimitStatus = getLimitStatus(billingLimit?.dailyLimit, latestAlertValue);
   const monthlyLimitStatus = getLimitStatus(billingLimit?.monthlyLimit, latestAlertValue);
   const previewWarning =
@@ -653,18 +729,21 @@ export function BillPage() {
     setLatestBillId(null);
   };
 
-  const handleGenerateBill = async () => {
+  const handleGenerateBill = async (range?: { from: string; to: string }) => {
+    const billFrom = range?.from ?? fromDate;
+    const billTo = range?.to ?? toDate;
+
     if (!effectiveSelectedPropertyId) {
       toast.error("Select a property first");
       return;
     }
 
-    if (!fromDate || !toDate) {
+    if (!billFrom || !billTo) {
       toast.error("Select a valid date range");
       return;
     }
 
-    if (fromDate > toDate) {
+    if (billFrom > billTo) {
       toast.error("From date must be before To date");
       return;
     }
@@ -673,8 +752,8 @@ export function BillPage() {
       const result = await generateBill({
         variables: {
           propertyId: effectiveSelectedPropertyId,
-          from: fromDate,
-          to: toDate,
+          from: billFrom,
+          to: billTo,
         },
       });
 
@@ -685,8 +764,26 @@ export function BillPage() {
       await refetchBillingLimit();
 
       const createdBillId = result.data?.generateBill?.id as string | undefined;
-      setLatestBillId(createdBillId ?? normalizedRefetchedBills[0]?.id ?? null);
-      setSelectedBillId(createdBillId ?? normalizedRefetchedBills[0]?.id ?? null);
+      const generatedBillId = createdBillId ?? normalizedRefetchedBills[0]?.id ?? null;
+
+      setLatestBillId(generatedBillId);
+      setSelectedBillId(generatedBillId);
+
+      if (generatedBillId) {
+        await Promise.all([
+          refetchBillDetail({ billId: generatedBillId }),
+          refetchLatestBillDetail({ billId: generatedBillId }),
+        ]);
+      }
+
+      const refreshedPreview = await getBillPreview({
+        variables: {
+          propertyId: effectiveSelectedPropertyId,
+          from: billFrom,
+          to: billTo,
+        },
+      });
+      setPreviewResult(normalizeBillPreview(refreshedPreview.data?.getBillPreview));
       setLatestBillDialogOpen(true);
 
       toast.success("Bill generated successfully");
@@ -779,6 +876,54 @@ export function BillPage() {
       user={meData?.me}
       actions={
         <div className="flex flex-wrap items-center gap-3">
+          <Button
+            variant="outline"
+            onClick={() => {
+              setBillingPeriodOpen(true);
+              setAlertSettingsOpen(false);
+            }}
+            aria-haspopup="dialog"
+          >
+            <CalendarRange className="h-4 w-4" />
+            Billing Period
+          </Button>
+
+          <Button
+            variant="outline"
+            onClick={() => void handlePreviewBill()}
+            disabled={previewLoading || !effectiveSelectedPropertyId}
+          >
+            <FileText className="h-4 w-4" />
+            {previewLoading ? "Previewing..." : "Preview Bill"}
+          </Button>
+
+          <Button
+            variant="outline"
+            onClick={() => {
+              setAlertSettingsOpen((open) => !open);
+              setBillingPeriodOpen(false);
+            }}
+            disabled={!effectiveSelectedPropertyId}
+            aria-expanded={alertSettingsOpen}
+          >
+            <AlertTriangle className="h-4 w-4" />
+            Alert Settings
+            <ChevronDown
+              className={`h-4 w-4 transition-transform ${
+                alertSettingsOpen ? "rotate-180" : ""
+              }`}
+            />
+          </Button>
+
+          <Button
+            variant="neon"
+            onClick={() => void handleGenerateBill()}
+            disabled={generatingBill || !effectiveSelectedPropertyId}
+          >
+            <PlusCircle className="h-4 w-4" />
+            {generatingBill ? "Generating..." : "Generate Bill"}
+          </Button>
+
           <Select value={effectiveSelectedPropertyId} onValueChange={handlePropertyChange}>
             <SelectTrigger className="w-[220px]">
               <SelectValue placeholder="Select Property" />
@@ -791,24 +936,6 @@ export function BillPage() {
               ))}
             </SelectContent>
           </Select>
-
-          <Button
-            variant="outline"
-            onClick={() => void handlePreviewBill()}
-            disabled={previewLoading || !effectiveSelectedPropertyId}
-          >
-            <FileText className="h-4 w-4" />
-            {previewLoading ? "Previewing..." : "Preview Bill"}
-          </Button>
-
-          <Button
-            variant="neon"
-            onClick={() => void handleGenerateBill()}
-            disabled={generatingBill || !effectiveSelectedPropertyId}
-          >
-            <PlusCircle className="h-4 w-4" />
-            {generatingBill ? "Generating..." : "Generate Bill"}
-          </Button>
         </div>
       }
     >
@@ -823,89 +950,7 @@ export function BillPage() {
           </div>
         ) : (
           <>
-            <section className="grid gap-4 lg:grid-cols-3">
-              <div className="bg-card rounded-xl border border-border p-6">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                    <CalendarRange className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm text-muted-foreground">Billing Range</p>
-                    <div className="mt-4 grid gap-3">
-                      <label className="text-sm">
-                        <span className="mb-1 block text-muted-foreground">From</span>
-                        <input
-                          type="date"
-                          value={fromDate}
-                          onChange={(event) => setFromDate(event.target.value)}
-                          className="h-11 w-full min-w-0 rounded-md border border-border bg-background px-3 pr-8 text-xs text-foreground"
-                          style={{ colorScheme: "dark" }}
-                        />
-                      </label>
-                      <label className="text-sm">
-                        <span className="mb-1 block text-muted-foreground">To</span>
-                        <input
-                          type="date"
-                          value={toDate}
-                          onChange={(event) => setToDate(event.target.value)}
-                          className="h-11 w-full min-w-0 rounded-md border border-border bg-background px-3 pr-8 text-xs text-foreground"
-                          style={{ colorScheme: "dark" }}
-                        />
-                      </label>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-card rounded-xl border border-border p-6">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent/10 text-accent">
-                    <FileText className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Selected Property</p>
-                    <p className="mt-2 text-lg font-semibold text-foreground">
-                      {selectedProperty?.propertyName ?? "No property selected"}
-                    </p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {bills.length} bill{bills.length === 1 ? "" : "s"} saved
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-card rounded-xl border border-border p-6">
-                <p className="text-sm text-muted-foreground">Latest Bill</p>
-                <p className="mt-2 text-lg font-semibold text-foreground">
-                  {latestBill && latestBillHasUsage
-                    ? new Intl.NumberFormat("en-IN", {
-                        style: "currency",
-                        currency: "INR",
-                        maximumFractionDigits: 2,
-                      }).format(latestBill.totalAmount)
-                    : latestBill
-                      ? "No billed usage yet"
-                      : "No bills yet"}
-                </p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {latestBill && latestBillHasUsage
-                    ? `${latestBill.totalKwh.toFixed(2)} kWh in the latest generated cycle`
-                    : latestBill
-                      ? "The most recent bill for this property has no recorded usage."
-                      : "Generate a bill to start building billing history."}
-                </p>
-                <Button
-                  variant="outline"
-                  className="mt-4"
-                  disabled={!latestBill}
-                  onClick={() => setLatestBillDialogOpen(true)}
-                >
-                  <FileText className="h-4 w-4" />
-                  Open Latest Bill
-                </Button>
-              </div>
-            </section>
-
+            {alertSettingsOpen ? (
             <section className="app-content-panel">
               <div className="mb-5 flex items-start gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-400/10 text-amber-300">
@@ -1005,27 +1050,43 @@ export function BillPage() {
                 </div>
               ) : null}
             </section>
+            ) : null}
 
-            <section className="grid gap-6 xl:grid-cols-[1.05fr_1.4fr]">
-              <BillList
-                bills={bills}
-                selectedBillId={effectiveSelectedBillId}
-                loading={billsLoading}
-                error={billsError?.message}
-                onSelect={setSelectedBillId}
-              />
+            <BillDetail
+              bill={displayedBill}
+              loading={billDetailLoading && !previewResult}
+              error={previewResult ? undefined : billDetailError?.message}
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+            />
 
-              <BillDetail
-                bill={selectedBill}
-                loading={billDetailLoading}
-                error={billDetailError?.message}
-                viewMode={viewMode}
-                onViewModeChange={setViewMode}
-              />
-            </section>
+            <BillList
+              bills={bills}
+              selectedBillId={effectiveSelectedBillId}
+              loading={billsLoading}
+              error={billsError?.message}
+              onSelect={setSelectedBillId}
+            />
           </>
         )}
       </div>
+
+      {billingPeriodOpen ? (
+        <BillingPeriodDialog
+          open={billingPeriodOpen}
+          onOpenChange={setBillingPeriodOpen}
+          fromDate={fromDate}
+          toDate={toDate}
+          onFromDateChange={setFromDate}
+          onToDateChange={setToDate}
+          onGenerate={(from, to) => {
+            setFromDate(from);
+            setToDate(to);
+            void handleGenerateBill({ from, to });
+          }}
+          generating={generatingBill}
+        />
+      ) : null}
 
       <BillReportDialog
         open={previewDialogOpen}

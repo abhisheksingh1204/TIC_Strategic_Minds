@@ -293,6 +293,10 @@ export default function Analysis() {
     () => (selectedPropertyId === "all" ? [] : roomsData?.roomsByProperty ?? []),
     [roomsData, selectedPropertyId]
   );
+  const activeRoomId =
+    selectedPropertyId !== "all" && selectedRoomId === "all" && rooms.length > 0
+      ? rooms[0].id
+      : selectedRoomId;
 
   const { data: propertyEquipmentData } = useQuery<EquipmentsByPropertyQueryData>(EQUIPMENTS_BY_PROPERTY_QUERY, {
     variables: { propertyId: selectedPropertyId },
@@ -318,19 +322,19 @@ export default function Analysis() {
   const [updateUsageSessionDuration] = useMutation(UPDATE_USAGE_SESSION_DURATION_MUTATION);
 
   const { data: equipmentData } = useQuery<EquipmentsByRoomQueryData>(EQUIPMENTS_BY_ROOM_QUERY, {
-    variables: { roomId: selectedRoomId },
-    skip: selectedRoomId === "all",
+    variables: { roomId: activeRoomId },
+    skip: activeRoomId === "all",
     fetchPolicy: "network-only",
     pollInterval: LIVE_POLL_INTERVAL_MS,
   });
 
   const equipments: Equipment[] = useMemo(
-    () => (selectedRoomId === "all" ? [] : equipmentData?.equipmentsByRoom ?? []),
-    [equipmentData, selectedRoomId]
+    () => (activeRoomId === "all" ? [] : equipmentData?.equipmentsByRoom ?? []),
+    [activeRoomId, equipmentData]
   );
 
   const selectedProperty = properties.find((p) => p.id === selectedPropertyId);
-  const selectedRoom = rooms.find((r) => r.id === selectedRoomId);
+  const selectedRoom = rooms.find((r) => r.id === activeRoomId);
   const propertyUsageSessions: UsageSessionRecord[] = useMemo(
     () => (selectedPropertyId === "all" ? [] : usageSessionsData?.usageSessions ?? []),
     [selectedPropertyId, usageSessionsData]
@@ -424,6 +428,22 @@ export default function Analysis() {
     };
   }, [apolloClient, properties]);
 
+  useEffect(() => {
+    if (selectedPropertyId === "all") {
+      setSelectedRoomId("all");
+      return;
+    }
+
+    if (selectedRoomId !== "all") {
+      const roomStillExists = rooms.some((room) => room.id === selectedRoomId);
+      if (roomStillExists) return;
+    }
+
+    if (rooms.length > 0) {
+      setSelectedRoomId(rooms[0].id);
+    }
+  }, [rooms, selectedPropertyId, selectedRoomId]);
+
   const handleLogout = () => {
     clearAuthTokens();
     router.push("/");
@@ -491,12 +511,12 @@ export default function Analysis() {
         session.energyKwh >= 0
     );
 
-    if (selectedRoomId === "all") {
+    if (activeRoomId === "all") {
       return relevantSessions;
     }
 
-    return relevantSessions.filter((session) => session.roomId === selectedRoomId);
-  }, [propertyUsageSessions, selectedRoomId]);
+    return relevantSessions.filter((session) => session.roomId === activeRoomId);
+  }, [activeRoomId, propertyUsageSessions]);
 
   const currentMonthUsageSessions = useMemo(
     () =>
@@ -600,6 +620,8 @@ export default function Analysis() {
   const roomBreakdown = useMemo<BreakdownRow[]>(() => {
     if (selectedPropertyId === "all") return [];
 
+    const roomLabelById = new Map(rooms.map((room) => [room.id, room.roomName]));
+
     if (propertyUsageSessions.length > 0) {
       const propertyScopeSessions =
         trendMode === "day"
@@ -653,20 +675,26 @@ export default function Analysis() {
         .sort((a, b) => b.value - a.value);
     }
 
-    return rooms
-      .map((room) => {
-        const roomItems = propertyEquipments.filter((equipment) => equipment.roomId === room.id);
-        const monthlyKwh = roomItems.reduce(
-          (sum, equipment) => sum + monthlyKwhForEquipment(equipment),
-          0
-        );
+    const groupedByRoomId = propertyEquipments.reduce<
+      Record<string, { value: number; count: number }>
+    >((acc, equipment) => {
+      const key = equipment.roomId || "unknown-room";
 
-        return {
-          label: room.roomName,
-          value: monthlyKwh,
-          meta: `${roomItems.reduce((sum, equipment) => sum + activeQuantityForEquipment(equipment), 0)} active devices`,
-        };
-      })
+      if (!acc[key]) {
+        acc[key] = { value: 0, count: 0 };
+      }
+
+      acc[key].value += monthlyKwhForEquipment(equipment);
+      acc[key].count += activeQuantityForEquipment(equipment);
+      return acc;
+    }, {});
+
+    return Object.entries(groupedByRoomId)
+      .map(([roomId, item]) => ({
+        label: roomLabelById.get(roomId) ?? `Room ${roomId.slice(-4).toUpperCase()}`,
+        value: item.value,
+        meta: `${item.count} active devices`,
+      }))
       .filter((room) => room.value > 0 || room.meta !== "0 active devices")
       .sort((a, b) => b.value - a.value);
   }, [
@@ -681,6 +709,43 @@ export default function Analysis() {
   ]);
 
   const deviceBreakdown = useMemo<BreakdownRow[]>(() => {
+    if (viewLevel === "room") {
+      const source = equipments;
+
+      if (!source.length) return [];
+
+      const aggregated = source.reduce<Record<string, { value: number; count: number }>>(
+        (acc, equipment) => {
+          const meta = getCatalogDeviceMeta(equipment.catalogId);
+          const label =
+            equipmentLabelById.get(equipment.id) ?? meta.name;
+          const usageValue = monthlyKwhForEquipment(equipment);
+          const fallbackValue =
+            (equipment.ratedPowerWatt * (equipment.quantity || 1) * equipment.efficiencyFactor) /
+            1000;
+          const value = usageValue > 0 ? usageValue : fallbackValue;
+
+          if (!acc[label]) {
+            acc[label] = { value: 0, count: 0 };
+          }
+
+          acc[label].value += value;
+          acc[label].count += activeQuantityForEquipment(equipment);
+          return acc;
+        },
+        {}
+      );
+
+      return Object.entries(aggregated)
+        .map(([label, item]) => ({
+          label,
+          value: item.value,
+          meta: `${item.count} units`,
+        }))
+        .filter((item) => item.value > 0 || item.meta !== "0 units")
+        .sort((a, b) => b.value - a.value);
+    }
+
     if (viewLevel !== "global" && scopedUsageSessions.length > 0) {
       const aggregated = scopedUsageSessions.reduce<
         Record<string, { label: string; value: number; count: number }>
@@ -712,9 +777,7 @@ export default function Analysis() {
     }
 
     const source =
-      viewLevel === "room"
-        ? equipments
-        : viewLevel === "property"
+      viewLevel === "property"
           ? propertyEquipments
           : [];
 

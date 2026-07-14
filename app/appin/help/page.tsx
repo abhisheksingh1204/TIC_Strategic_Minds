@@ -44,17 +44,20 @@ type MeQueryData = {
   } | null;
 };
 
+type MeQueryVariables = Record<string, never>;
+
 export default function Help() {
   const [supportDialogOpen, setSupportDialogOpen] = useState(false);
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
-  const { data: meData } = useQuery<MeQueryData>(ME_QUERY, {
+  const { data: meData } = useQuery<MeQueryData, MeQueryVariables>(ME_QUERY, {
     errorPolicy: "all",
     fetchPolicy: "network-only",
   });
-  const [sendSupportEmail, { loading: sendingSupportEmail }] = useMutation(
-    SEND_SUPPORT_EMAIL_MUTATION
-  );
+  const [sendSupportEmail, { loading: sendingSupportEmail }] = useMutation<
+    { sendSupportEmail: boolean },
+    { subject: string; message: string }
+  >(SEND_SUPPORT_EMAIL_MUTATION);
 
   const handleOpenFaq = () => {
     document.getElementById("help-faqs")?.scrollIntoView({

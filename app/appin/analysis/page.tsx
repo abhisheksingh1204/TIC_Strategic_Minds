@@ -112,21 +112,34 @@ type MeQueryData = {
 type MyPropertiesQueryData = {
   myProperties: PropertyRecord[];
 };
+type MyPropertiesQueryVariables = Record<string, never>;
 
 type RoomsByPropertyQueryData = {
   roomsByProperty: RoomRecord[];
+};
+type RoomsByPropertyQueryVariables = {
+  propertyId: string;
 };
 
 type EquipmentsByPropertyQueryData = {
   equipmentsByProperty: Equipment[];
 };
+type EquipmentsByPropertyQueryVariables = {
+  propertyId: string;
+};
 
 type EquipmentsByRoomQueryData = {
   equipmentsByRoom: Equipment[];
 };
+type EquipmentsByRoomQueryVariables = {
+  roomId: string;
+};
 
 type UsageSessionsQueryData = {
   usageSessions: UsageSessionRecord[];
+};
+type UsageSessionsQueryVariables = {
+  propertyId: string;
 };
 
 const RATE_PER_KWH = DEFAULT_RATE_PER_KWH;
@@ -270,11 +283,11 @@ export default function Analysis() {
     data: propertiesData,
     loading: propertiesLoading,
     error: propertiesError,
-  } = useQuery<MyPropertiesQueryData>(MY_PROPERTIES_QUERY, {
+  } = useQuery<MyPropertiesQueryData, MyPropertiesQueryVariables>(MY_PROPERTIES_QUERY, {
     errorPolicy: "all",
   });
 
-  const { data: meData } = useQuery<MeQueryData>(ME_QUERY, {
+  const { data: meData } = useQuery<MeQueryData, Record<string, never>>(ME_QUERY, {
     errorPolicy: "all",
     fetchPolicy: "network-only",
   });
@@ -284,7 +297,7 @@ export default function Analysis() {
     [propertiesData]
   );
 
-  const { data: roomsData } = useQuery<RoomsByPropertyQueryData>(ROOMS_BY_PROPERTY_QUERY, {
+  const { data: roomsData } = useQuery<RoomsByPropertyQueryData, RoomsByPropertyQueryVariables>(ROOMS_BY_PROPERTY_QUERY, {
     variables: { propertyId: selectedPropertyId },
     skip: selectedPropertyId === "all",
   });
@@ -298,7 +311,10 @@ export default function Analysis() {
       ? rooms[0].id
       : selectedRoomId;
 
-  const { data: propertyEquipmentData } = useQuery<EquipmentsByPropertyQueryData>(EQUIPMENTS_BY_PROPERTY_QUERY, {
+  const { data: propertyEquipmentData } = useQuery<
+    EquipmentsByPropertyQueryData,
+    EquipmentsByPropertyQueryVariables
+  >(EQUIPMENTS_BY_PROPERTY_QUERY, {
     variables: { propertyId: selectedPropertyId },
     skip: selectedPropertyId === "all",
     fetchPolicy: "network-only",
@@ -313,7 +329,10 @@ export default function Analysis() {
     [propertyEquipmentData, selectedPropertyId]
   );
 
-  const { data: usageSessionsData } = useQuery<UsageSessionsQueryData>(USAGE_SESSIONS_QUERY, {
+  const { data: usageSessionsData } = useQuery<
+    UsageSessionsQueryData,
+    UsageSessionsQueryVariables
+  >(USAGE_SESSIONS_QUERY, {
     variables: { propertyId: selectedPropertyId },
     skip: selectedPropertyId === "all",
     fetchPolicy: "network-only",
@@ -321,7 +340,10 @@ export default function Analysis() {
   });
   const [updateUsageSessionDuration] = useMutation(UPDATE_USAGE_SESSION_DURATION_MUTATION);
 
-  const { data: equipmentData } = useQuery<EquipmentsByRoomQueryData>(EQUIPMENTS_BY_ROOM_QUERY, {
+  const { data: equipmentData } = useQuery<
+    EquipmentsByRoomQueryData,
+    EquipmentsByRoomQueryVariables
+  >(EQUIPMENTS_BY_ROOM_QUERY, {
     variables: { roomId: activeRoomId },
     skip: activeRoomId === "all",
     fetchPolicy: "network-only",
@@ -710,7 +732,7 @@ export default function Analysis() {
 
   const deviceBreakdown = useMemo<BreakdownRow[]>(() => {
     if (viewLevel === "room") {
-      const source = equipments;
+      const source = equipments.length > 0 ? equipments : propertyEquipments.filter((equipment) => equipment.roomId === activeRoomId);
 
       if (!source.length) return [];
 
@@ -884,7 +906,9 @@ export default function Analysis() {
 
     const baseRows =
       viewLevel === "room"
-        ? deviceBreakdown
+        ? deviceBreakdown.length > 0
+          ? deviceBreakdown
+          : categoryBreakdown
         : viewLevel === "property"
           ? roomBreakdown
           : globalDistribution;
@@ -917,6 +941,7 @@ export default function Analysis() {
     selectedUsageSessions,
     trendMode,
     viewLevel,
+    categoryBreakdown,
   ]);
 
   const handleSessionDurationUpdate = async (session: UsageSessionRecord) => {
@@ -1138,7 +1163,7 @@ export default function Analysis() {
                     emptyMessage="Add properties and equipment to see portfolio-level analysis."
                   />
                 </div>
-                <div className="xl:col-span-1">
+                <div className="xl:col-span-1 min-h-[420px]">
                   <DeviceDistribution
                     title={distributionTitle}
                     trendMode={trendMode}
@@ -1238,7 +1263,7 @@ export default function Analysis() {
                     emptyMessage="No room-level usage available for this property yet."
                   />
                 </div>
-                <div className="xl:col-span-1">
+                <div className="xl:col-span-1 min-h-[420px]">
                   <DeviceDistribution
                     title={distributionTitle}
                     trendMode={trendMode}
@@ -1439,7 +1464,7 @@ export default function Analysis() {
                 </div>
               </div>
 
-              <div className="xl:col-span-1">
+              <div className="xl:col-span-1 min-h-[420px]">
                 <DeviceDistribution
                   title={distributionTitle}
                   trendMode={trendMode}

@@ -119,7 +119,7 @@ export const getEquipmentsByProperty = async (
 
   return Equipment.find({ roomId: { $in: roomIds } }).sort({ createdAt: -1 });
 };
-
+// this is updating equipment while taking all the info and checking and then if it is on it kept on and vice versa
 export const updateEquipment = async (
   userId: string | undefined,
   input: UpdateEquipmentInput

@@ -30,6 +30,14 @@ type RegisterMutationData = {
   };
 };
 
+type RegisterMutationVariables = {
+  input: {
+    name: string;
+    email: string;
+    password: string;
+  };
+};
+
 export default function SignUp() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
@@ -37,7 +45,8 @@ export default function SignUp() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [agreeTerms, setAgreeTerms] = useState(false);
-  const [register, { loading }] = useMutation<RegisterMutationData>(REGISTER_MUTATION);
+  const [register, { loading }] =
+    useMutation<RegisterMutationData, RegisterMutationVariables>(REGISTER_MUTATION);
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();

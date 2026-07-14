@@ -1,6 +1,12 @@
+// Layout for the entire application
+
+
 import type { Metadata } from "next";
 import { Geist_Mono, Manrope, Sora } from "next/font/google";
 import "./globals.css";
+
+
+
 
 const bodyFont = Manrope({
   variable: "--font-body",

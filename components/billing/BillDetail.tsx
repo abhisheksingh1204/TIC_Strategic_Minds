@@ -1,23 +1,6 @@
 "use client";
 
-type BillLineItem = {
-  id: string;
-  equipmentId: string;
-  equipmentName: string;
-  kwh: number;
-  amount: number;
-};
-
-type BillDetailRecord = {
-  id: string;
-  periodStart: string;
-  periodEnd: string;
-  totalKwh: number;
-  totalAmount: number;
-  createdAt: string;
-  updatedAt: string;
-  lineItems: BillLineItem[];
-};
+import type { BillDetailRecord } from "@/components/billing/billing.types";
 
 type BillDetailProps = {
   bill: BillDetailRecord | null;

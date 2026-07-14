@@ -15,6 +15,18 @@ type LoginMutationData = {
   login: {
     accessToken: string;
     refreshToken: string;
+    user: {
+      id: string;
+      email: string | null;
+      name: string | null;
+    } | null;
+  };
+};
+
+type LoginMutationVariables = {
+  input: {
+    email: string;
+    password: string;
   };
 };
 
@@ -23,7 +35,8 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [login, { loading }] = useMutation<LoginMutationData>(LOGIN_MUTATION);
+  const [login, { loading }] =
+    useMutation<LoginMutationData, LoginMutationVariables>(LOGIN_MUTATION);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

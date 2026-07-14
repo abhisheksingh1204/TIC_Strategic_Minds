@@ -34,33 +34,14 @@ import {
   SET_BILLING_LIMIT_MUTATION,
 } from "@/lib/graphql/queries/billing.queries";
 import { MY_PROPERTIES_QUERY } from "@/lib/graphql/queries/properties.queries";
-
+import type {
+  BillBreakdownItem,
+  BillDetailRecord,
+  BillSummary,
+} from "@/components/billing/billing.types";
 type PropertyRecord = {
   id: string;
   propertyName: string;
-};
-
-type BillSummary = {
-  id: string;
-  propertyId: string;
-  periodStart: string;
-  periodEnd: string;
-  totalKwh: number;
-  totalAmount: number;
-  createdAt: string;
-  updatedAt: string;
-};
-
-type BillDetailRecord = BillSummary & {
-  lineItems: BillBreakdownItem[];
-};
-
-type BillBreakdownItem = {
-  id: string;
-  equipmentId: string;
-  equipmentName: string;
-  kwh: number;
-  amount: number;
 };
 
 type BillingLimitRecord = {
@@ -92,16 +73,34 @@ type MyPropertiesQueryData = {
   myProperties: PropertyRecord[];
 };
 
+type GetBillsQueryVariables = {
+  propertyId: string;
+};
+
 type GetBillsQueryData = {
-  getBills: unknown[];
+  getBills: BillSummary[];
+};
+
+type GetBillByIdQueryVariables = {
+  billId: string;
 };
 
 type GetBillByIdQueryData = {
-  getBillById: unknown;
+  getBillById: BillDetailRecord;
+};
+
+type GetBillingLimitQueryVariables = {
+  propertyId: string;
 };
 
 type GetBillingLimitQueryData = {
-  getBillingLimit: unknown;
+  getBillingLimit: BillingLimitRecord;
+};
+
+type GenerateBillMutationVariables = {
+  propertyId: string;
+  from: string;
+  to: string;
 };
 
 type GenerateBillMutationData = {
@@ -110,8 +109,14 @@ type GenerateBillMutationData = {
   } | null;
 };
 
+type GetBillPreviewQueryVariables = {
+  propertyId: string;
+  from: string;
+  to: string;
+};
+
 type GetBillPreviewQueryData = {
-  getBillPreview: unknown;
+  getBillPreview: BillPreviewRecord;
 };
 
 const normalizeBillSummary = (bill: any): BillSummary => ({
@@ -494,7 +499,7 @@ export function BillPage() {
   const [alertSettingsOpen, setAlertSettingsOpen] = useState(false);
   const [billingPeriodOpen, setBillingPeriodOpen] = useState(false);
 
-  const { data: meData } = useQuery<MeQueryData>(ME_QUERY, {
+  const { data: meData } = useQuery<MeQueryData, Record<string, never>>(ME_QUERY, {
     errorPolicy: "all",
     fetchPolicy: "network-only",
   });
@@ -503,7 +508,7 @@ export function BillPage() {
     data: propertiesData,
     loading: propertiesLoading,
     error: propertiesError,
-  } = useQuery<MyPropertiesQueryData>(MY_PROPERTIES_QUERY, {
+  } = useQuery<MyPropertiesQueryData, Record<string, never>>(MY_PROPERTIES_QUERY, {
     errorPolicy: "all",
     fetchPolicy: "cache-and-network",
   });
@@ -520,7 +525,7 @@ export function BillPage() {
     loading: billsLoading,
     error: billsError,
     refetch: refetchBills,
-  } = useQuery<GetBillsQueryData>(GET_BILLS_QUERY, {
+  } = useQuery<GetBillsQueryData, GetBillsQueryVariables>(GET_BILLS_QUERY, {
     variables: { propertyId: effectiveSelectedPropertyId },
     skip: !effectiveSelectedPropertyId,
     fetchPolicy: "network-only",
@@ -549,7 +554,7 @@ export function BillPage() {
     loading: billDetailLoading,
     error: billDetailError,
     refetch: refetchBillDetail,
-  } = useQuery<GetBillByIdQueryData>(GET_BILL_BY_ID_QUERY, {
+  } = useQuery<GetBillByIdQueryData, GetBillByIdQueryVariables>(GET_BILL_BY_ID_QUERY, {
     variables: { billId: effectiveSelectedBillId },
     skip: !effectiveSelectedBillId,
     fetchPolicy: "network-only",
@@ -594,9 +599,11 @@ export function BillPage() {
   ]);
 
   const [generateBill, { loading: generatingBill }] =
-    useMutation<GenerateBillMutationData>(GENERATE_BILL_MUTATION);
+    useMutation<GenerateBillMutationData, GenerateBillMutationVariables>(
+      GENERATE_BILL_MUTATION
+    );
   const [getBillPreview, { loading: previewLoading }] =
-    useLazyQuery<GetBillPreviewQueryData>(GET_BILL_PREVIEW_QUERY, {
+    useLazyQuery<GetBillPreviewQueryData, GetBillPreviewQueryVariables>(GET_BILL_PREVIEW_QUERY, {
       fetchPolicy: "network-only",
     });
 
@@ -604,7 +611,7 @@ export function BillPage() {
     data: billingLimitData,
     loading: billingLimitLoading,
     refetch: refetchBillingLimit,
-  } = useQuery<GetBillingLimitQueryData>(GET_BILLING_LIMIT_QUERY, {
+  } = useQuery<GetBillingLimitQueryData, GetBillingLimitQueryVariables>(GET_BILLING_LIMIT_QUERY, {
     variables: { propertyId: effectiveSelectedPropertyId },
     skip: !effectiveSelectedPropertyId,
     fetchPolicy: "network-only",
@@ -684,7 +691,7 @@ export function BillPage() {
     data: latestBillDetailData,
     loading: latestBillDetailLoading,
     refetch: refetchLatestBillDetail,
-  } = useQuery<GetBillByIdQueryData>(GET_BILL_BY_ID_QUERY, {
+  } = useQuery<GetBillByIdQueryData, GetBillByIdQueryVariables>(GET_BILL_BY_ID_QUERY, {
     variables: { billId: latestBill?.id },
     skip: !latestBill?.id,
     fetchPolicy: "network-only",

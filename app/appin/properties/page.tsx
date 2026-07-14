@@ -64,8 +64,14 @@ type MyPropertiesQueryData = {
   myProperties: Property[];
 };
 
+type MyPropertiesQueryVariables = Record<string, never>;
+
 type RoomsByPropertyQueryData = {
   roomsByProperty: Room[];
+};
+
+type RoomsByPropertyQueryVariables = {
+  propertyId: string;
 };
 
 type UpdatePropertyMutationData = {
@@ -100,12 +106,15 @@ function PropertiesContent() {
     }
   }, [requestedCreatePropertyType]);
 
-  const { data: meData } = useQuery<MeQueryData>(ME_QUERY, {
+  const { data: meData } = useQuery<MeQueryData, Record<string, never>>(ME_QUERY, {
     errorPolicy: "all",
     fetchPolicy: "network-only",
   });
 
-  const { data, loading, error } = useQuery<MyPropertiesQueryData>(MY_PROPERTIES_QUERY, {
+  const { data, loading, error } = useQuery<
+    MyPropertiesQueryData,
+    MyPropertiesQueryVariables
+  >(MY_PROPERTIES_QUERY, {
     errorPolicy: "all",
   });
 
@@ -113,10 +122,13 @@ function PropertiesContent() {
     refetchQueries: [{ query: MY_PROPERTIES_QUERY }],
   });
   const [updatePropertyMutation, { loading: updatingProperty }] =
-    useMutation<UpdatePropertyMutationData>(UPDATE_PROPERTY_MUTATION, {
+    useMutation<UpdatePropertyMutationData, { propertyId: string; input: { propertyName: string } }>(
+      UPDATE_PROPERTY_MUTATION,
+      {
       refetchQueries: [{ query: MY_PROPERTIES_QUERY }],
       awaitRefetchQueries: true,
-    });
+      }
+    );
 
   const [deleteProperty, { loading: deletingProperty }] = useMutation(
     DELETE_PROPERTY_MUTATION,
@@ -130,7 +142,7 @@ function PropertiesContent() {
     data: roomsData,
     loading: roomsLoading,
     error: roomsError,
-  } = useQuery<RoomsByPropertyQueryData>(ROOMS_BY_PROPERTY_QUERY, {
+  } = useQuery<RoomsByPropertyQueryData, RoomsByPropertyQueryVariables>(ROOMS_BY_PROPERTY_QUERY, {
     variables: { propertyId: selectedProperty?.id ?? "" },
     skip: !selectedProperty,
   });

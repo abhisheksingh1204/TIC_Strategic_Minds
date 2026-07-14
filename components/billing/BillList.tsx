@@ -1,14 +1,6 @@
 "use client";
 
-type BillSummary = {
-  id: string;
-  periodStart: string;
-  periodEnd: string;
-  totalKwh: number;
-  totalAmount: number;
-  createdAt: string;
-  updatedAt: string;
-};
+import type { BillSummary } from "@/components/billing/billing.types";
 
 const formatMonthRange = (periodStart: string, periodEnd: string) => {
   const start = new Date(periodStart);

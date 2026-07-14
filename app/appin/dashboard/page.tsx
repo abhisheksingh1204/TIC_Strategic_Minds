@@ -45,8 +45,14 @@ type MyPropertiesQueryData = {
   myProperties: PropertyRecord[];
 };
 
+type MyPropertiesQueryVariables = Record<string, never>;
+
 type RoomsByPropertyQueryData = {
   roomsByProperty: RoomRecord[];
+};
+
+type RoomsByPropertyQueryVariables = {
+  propertyId: string;
 };
 
 const formatDate = (value?: string) => formatDateSafe(value);
@@ -56,7 +62,7 @@ export default function Dashboard() {
   const apolloClient = useApolloClient();
   const [rooms, setRooms] = useState<RoomRecord[]>([]);
 
-  const { data: meData } = useQuery<MeQueryData>(ME_QUERY, {
+  const { data: meData } = useQuery<MeQueryData, Record<string, never>>(ME_QUERY, {
     errorPolicy: "all",
     fetchPolicy: "network-only",
   });
@@ -65,7 +71,7 @@ export default function Dashboard() {
     data: propertiesData,
     loading: propertiesLoading,
     error: propertiesError,
-  } = useQuery<MyPropertiesQueryData>(MY_PROPERTIES_QUERY, {
+  } = useQuery<MyPropertiesQueryData, MyPropertiesQueryVariables>(MY_PROPERTIES_QUERY, {
     errorPolicy: "all",
     fetchPolicy: "cache-and-network",
   });
@@ -87,7 +93,7 @@ export default function Dashboard() {
       const results = await Promise.all(
         properties.map((property) =>
           apolloClient
-              .query<RoomsByPropertyQueryData>({
+              .query<RoomsByPropertyQueryData, RoomsByPropertyQueryVariables>({
                 query: ROOMS_BY_PROPERTY_QUERY,
                 variables: { propertyId: property.id },
                 fetchPolicy: "network-only",

@@ -171,13 +171,20 @@ type SimulatorSnapshot = {
 type RoomsByPropertyQueryData = {
   roomsByProperty: RoomRecord[];
 };
+type RoomsByPropertyQueryVariables = {
+  propertyId: string;
+};
 
 type MyPropertiesQueryData = {
   myProperties: PropertyRecord[];
 };
+type MyPropertiesQueryVariables = Record<string, never>;
 
 type EquipmentsByRoomQueryData = {
   equipmentsByRoom: EquipmentRecord[];
+};
+type EquipmentsByRoomQueryVariables = {
+  roomId: string;
 };
 
 type ActiveTariffQueryData = {
@@ -324,12 +331,12 @@ export default function Simulator() {
     return () => window.clearTimeout(timeoutId);
   }, []);
 
-  const { data: roomData } = useQuery<RoomsByPropertyQueryData>(ROOMS_BY_PROPERTY_QUERY, {
+  const { data: roomData } = useQuery<RoomsByPropertyQueryData, RoomsByPropertyQueryVariables>(ROOMS_BY_PROPERTY_QUERY, {
     variables: { propertyId },
     skip: !propertyId,
     fetchPolicy: "network-only",
   });
-  const { data: propertiesData } = useQuery<MyPropertiesQueryData>(MY_PROPERTIES_QUERY, {
+  const { data: propertiesData } = useQuery<MyPropertiesQueryData, MyPropertiesQueryVariables>(MY_PROPERTIES_QUERY, {
     skip: !propertyId,
     fetchPolicy: "network-only",
   });
@@ -350,17 +357,17 @@ export default function Simulator() {
     loading: equipmentLoading,
     error: equipmentError,
     refetch: refetchEquipments,
-  } = useQuery<EquipmentsByRoomQueryData>(EQUIPMENTS_BY_ROOM_QUERY, {
+  } = useQuery<EquipmentsByRoomQueryData, EquipmentsByRoomQueryVariables>(EQUIPMENTS_BY_ROOM_QUERY, {
     variables: { roomId },
     skip: !roomId,
     fetchPolicy: "network-only",
   });
 
-  const [createEquipment] = useMutation<CreateEquipmentMutationData>(CREATE_EQUIPMENT_MUTATION);
-  const [updateEquipment] = useMutation<UpdateEquipmentMutationData>(UPDATE_EQUIPMENT_MUTATION);
-  const [deleteEquipment] = useMutation<DeleteEquipmentMutationData>(DELETE_EQUIPMENT_MUTATION);
-  const [createTariff] = useMutation<CreateTariffMutationData>(CREATE_TARIFF_MUTATION);
-  const [updateTariff] = useMutation<UpdateTariffMutationData>(UPDATE_TARIFF_MUTATION);
+  const [createEquipment] = useMutation<CreateEquipmentMutationData, { input: unknown }>(CREATE_EQUIPMENT_MUTATION);
+  const [updateEquipment] = useMutation<UpdateEquipmentMutationData, { input: unknown }>(UPDATE_EQUIPMENT_MUTATION);
+  const [deleteEquipment] = useMutation<DeleteEquipmentMutationData, { equipmentId: string }>(DELETE_EQUIPMENT_MUTATION);
+  const [createTariff] = useMutation<CreateTariffMutationData, unknown>(CREATE_TARIFF_MUTATION);
+  const [updateTariff] = useMutation<UpdateTariffMutationData, unknown>(UPDATE_TARIFF_MUTATION);
   const todayDate = useMemo(() => {
     const now = new Date();
     const year = now.getFullYear();
@@ -370,7 +377,7 @@ export default function Simulator() {
   }, []);
 
   const { data: activeTariffData, loading: activeTariffLoading } =
-    useQuery<ActiveTariffQueryData>(ACTIVE_TARIFF_QUERY, {
+    useQuery<ActiveTariffQueryData, { propertyId: string; date: string }>(ACTIVE_TARIFF_QUERY, {
       variables: { propertyId, date: todayDate },
       skip: !propertyId,
       fetchPolicy: "network-only",
